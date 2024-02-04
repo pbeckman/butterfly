@@ -221,8 +221,8 @@ int main(int argc, char const *argv[]) {
   sprintf(filename, "performance_kappa%.1e_nu%.1e.txt", kappa, nu);
   sprintf(
     line,
-    "%.1e\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n", 
-    tol, precomp_time, sampling_time/numSamples,
+    "%.1e\t%i\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n", 
+    tol, freqs->size, precomp_time, sampling_time/numSamples,
     numBytesCompressed/pow(1024, 2), 
     numBytesUncompressed/pow(1024, 2),
     numBytesUntruncated/pow(1024, 2)

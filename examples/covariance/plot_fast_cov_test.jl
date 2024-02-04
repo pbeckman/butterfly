@@ -44,7 +44,7 @@ end
 
 perf = readdlm(@sprintf("performance_kappa%.1e_nu%.1e.txt", k, nu))
 
-lbo_timings  = Float64.(perf[2:2+num_tols-1, 3])
+lbo_timings  = Float64.(perf[2:2+num_tols-1, 4])
 cheb_timings = Float64.(perf[num_tols+4:end, 2])
 
 ## estimate errors using Hutchinson

@@ -29,7 +29,7 @@ rm -f -- *.bin *.txt
 :> ps.txt
 mkdir -p output
 
-echo "TOL\tPRE(s)\t\tSAMP(s)\t\tCOMP(MB)\tUNCOMP(MB)\tUNTRUNC(MB)" >> $(printf "performance_kappa%.1e_nu%.1e.txt" $KAPPA $NU)
+echo "TOL\tRANK\tPRE(s)\t\tSAMP(s)\t\tCOMP(MB)\tUNCOMP(MB)\tUNTRUNC(MB)" >> $(printf "performance_kappa%.1e_nu%.1e.txt" $KAPPA $NU)
 
 # compute covariance for various butterfly tolerances
 for TOL in ${TOLS[@]}
