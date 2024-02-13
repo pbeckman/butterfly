@@ -62,8 +62,8 @@ function plot_nodal_values(gbmesh, vals; meshname="bunny0", cmap=:turbo, wframe=
 
     cam = Mke.Camera3D(lscene.scene, center=false)
     if occursin("armadillo", meshname)
-        cam.lookat[] = [0, 0, 0]
-        cam.eyeposition[] = [0, 0, -100]
+        cam.lookat[] = [0, 20, 0]
+        cam.eyeposition[] = [0, 0, -240]
         cam.upvector[]    = [0, 1, 0]
         Mke.update_cam!(lscene.scene, cam)
     elseif occursin("bunny", meshname)

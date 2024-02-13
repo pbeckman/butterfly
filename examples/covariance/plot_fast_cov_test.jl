@@ -50,77 +50,73 @@ cheb_timings = Float64.(perf[num_tols+4:end, 2])
 ## estimate errors using Hutchinson
 
 function hutchinson_frobenius(matvecs; corr_matvecs=nothing)
-    n  = size(matvecs, 2) 
-    zs = norm.(eachcol(matvecs)).^2
-    mean_z = sum(zs) / n
-    var_z  = sum((zs .- mean_z).^2) / (n-1)
+    nmv = size(matvecs, 1) 
+    zs  = norm.(eachrow(matvecs)).^2
+    mean_z = sum(zs) / nmv
+    var_z  = sum((zs .- mean_z).^2) / (nmv-1)
 
-    tr     = mean_z
-    tr_var = var_z / n
-
-    if !isnothing(corr_matvecs)
-        m  = size(corr_matvecs, 2) 
-        ws = norm.(eachcol(corr_matvecs)).^2
-        mean_w = sum(ws) / m
-        var_w  = sum((ws .- mean_w).^2) / (m-1)
-
-        rho = sum((zs .- mean_z).*(ws .- mean_w)) / sqrt(var_z*var_w)
-
-        return tr, tr_var, rho
+    if isnothing(corr_matvecs)
+        return mean_z, var_z
     else
-        return tr, tr_var
+        nmv = size(corr_matvecs, 1) 
+        ws  = norm.(eachrow(corr_matvecs)).^2
+        mean_w = sum(ws) / nmv
+        var_w  = sum((ws .- mean_w).^2) / (nmv-1)
+
+        rho = sum((zs .- mean_z).*(ws .- mean_w)) / sqrt(var_z*var_w) / (nmv-1)
+
+        return mean_z, var_z, rho
     end
+end
+
+function ratio_variance(m_y, v_y, m_x, v_x, rho, nmv) 
+    return (v_y/m_x^2 - 2m_y*rho/m_x^3 + m_y^2*v_x/m_x^4) / nmv
 end
 
 nmv = size(lbo_matvecs[1], 1)
 
-cheb_frobsq = Vector{Tuple{Float64, Float64, Float64}}(undef, num_ps)
-lbo_frobsq  = Vector{Tuple{Float64, Float64, Float64}}(undef, num_tols)
+cheb_frobsq = Vector{Vector{Float64}}(undef, num_ps)
+lbo_frobsq  = Vector{Vector{Float64}}(undef, num_tols)
 
-ref_frobsq = hutchinson_frobenius(ref_matvecs)
+m_x, v_x = hutchinson_frobenius(ref_matvecs)
 
 for i in eachindex(cheb_matvecs)
-    cheb_frobsq[i] = hutchinson_frobenius(
-        cheb_matvecs[i] - ref_matvecs[:, 1:nmv],
+    m_y, v_y, rho = hutchinson_frobenius(
+        cheb_matvecs[i] - ref_matvecs[1:nmv, :],
         corr_matvecs=ref_matvecs
         )
+    r   = m_y / m_x
+    v_r = ratio_variance(m_y, v_y, m_x, v_x, rho, nmv) 
+    cheb_frobsq[i] = [r, v_r, m_y, v_y, rho]
 end
 
 for i in eachindex(lbo_matvecs)
-    lbo_frobsq[i]  = hutchinson_frobenius(
-        lbo_matvecs[i] -  ref_matvecs[:, 1:nmv],
+    m_y, v_y, rho = hutchinson_frobenius(
+        lbo_matvecs[i] - ref_matvecs[1:nmv, :],
         corr_matvecs=ref_matvecs
         )
+    r   = m_y / m_x
+    v_r = ratio_variance(m_y, v_y, m_x, v_x, rho, nmv) 
+    lbo_frobsq[i] = [r, v_r, m_y, v_y, rho]
 end
 
-# cheb_opnorms = sqrt.(getindex.(cheb_frobsq, 1) / ref_frobsq[1])
-lbo_opnorms = sqrt.(getindex.(lbo_frobsq, 1)  / ref_frobsq[1])
+# norm squared
+cheb_normsq = getindex.(cheb_frobsq, 1)
+lbo_normsq  = getindex.(lbo_frobsq, 1)
 
-# lbo_logvars = 0.25*(
-#     getindex.(lbo_frobsq, 2) ./ getindex.(lbo_frobsq, 1).^2 .+
-#     ref_frobsq[2] / ref_frobsq[1]^2
-#     )
-# lbo_2std = (
-#     abs.(lbo_opnorms .* exp.(-2sqrt.(lbo_logvars)) .- lbo_opnorms),
-#          lbo_opnorms .* exp.( 2sqrt.(lbo_logvars)) .- lbo_opnorms
-# )
+# norms
+cheb_norm = sqrt.(cheb_normsq)
+lbo_norm  = sqrt.(lbo_normsq)
 
-lbo_sqvars = (
-    getindex.(lbo_frobsq, 2).^2 ./ ref_frobsq[1].^2 .+
-    getindex.(lbo_frobsq, 1).^2 .* ref_frobsq[2].^2 ./ ref_frobsq[1].^4 .-
-    2*getindex.(lbo_frobsq, 1) .* getindex.(lbo_frobsq, 3) ./ ref_frobsq[1].^3
-    ) ./ nmv
-lbo_2std = (
-    abs.(lbo_opnorms .* exp.(-2sqrt.(lbo_logvars)) .- lbo_opnorms),
-         lbo_opnorms .* exp.( 2sqrt.(lbo_logvars)) .- lbo_opnorms
-)
+# standard deviation of norm squared
+cheb_stdsq = sqrt.(getindex.(cheb_frobsq, 2))
+lbo_stdsq  = sqrt.(getindex.(lbo_frobsq, 2))
 
-@show ref_frobsq
-# @show cheb_opnorms
-@show lbo_opnorms
-
-# @show cheb_1std
-@show lbo_2std
+# upper and lower differences from norm
+cheb_uppers = sqrt.(cheb_normsq + 2*cheb_stdsq) - cheb_norm
+cheb_lowers = cheb_norm - sqrt.(cheb_normsq - 2*cheb_stdsq)
+lbo_uppers  = sqrt.(lbo_normsq + 2*lbo_stdsq) - lbo_norm
+lbo_lowers  = lbo_norm - sqrt.(lbo_normsq - 2*lbo_stdsq)
 
 ##
 
@@ -129,18 +125,20 @@ pl = plot(
         "%s, verts=%i\nκ=%1.1e, ν=%1.1e", 
         split(mesh_file, "/")[end], n, k, nu
         ),
-    # yscale=:log10,
+    xscale=:log10,
+    yscale=:log10,
     xlabel="time per sample (s)",
     ylabel=L"||C - \tilde{C}||"
     )
-# plot!(pl,
-#     cheb_timings, cheb_opnorms, 
-#     label="Chebyshev", line=(:red, 2, :dash), 
-#     marker=4, markerstrokewidth=0, markercolor=:red
-#     )
 plot!(pl,
-    lbo_timings, lbo_opnorms, 
-    yerror=lbo_2std,
+    cheb_timings, cheb_norm, 
+    yerror=(cheb_lowers, cheb_uppers),
+    label="Chebyshev", line=(:red, 2, :dash), 
+    marker=4, markerstrokewidth=0, markercolor=:red
+    )
+plot!(pl,
+    lbo_timings, lbo_norm, 
+    yerror=(lbo_lowers, lbo_uppers),
     label="Butterfly", line=(:blue, 1, :dash, 0.5), 
     marker=4, msw=1, markercolor=:blue
     )

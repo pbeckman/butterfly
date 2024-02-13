@@ -193,6 +193,7 @@ int main(int argc, char const *argv[]) {
 
   /** Time how long it takes to sample z numSamples times. */
 
+  printf("computing %i samples\n", numSamples);
   bfToc();
   for (BfSize _ = 0; _ < numSamples; ++_) {
     z = sample_z(&gammaCheb, S, MLumpSqrtInv);
@@ -222,11 +223,15 @@ int main(int argc, char const *argv[]) {
 
   bfSeed(0);
   BfSize s = numSamples;
+  BfMatDenseReal *randvecs = bfMatDenseRealNewZeros(numVerts, s);
   BfMatDenseReal *matvecs = bfMatDenseRealNewZeros(numVerts, s);
 
   printf("computing %i matvecs with covariance\n", s);
   for (BfSize j = 0; j < s; ++j) {
       BfVecReal *x = bfVecRealNewRandn(numVerts);
+
+      // Set column of inputs:
+      bfMatDenseRealSetCol(randvecs, j, x);
 
       // apply covariance matrix
       BfVec *tmp1 = cov_matvec(x, &gammaCheb, S, MLumpSqrtInv);
@@ -238,6 +243,9 @@ int main(int argc, char const *argv[]) {
       bfVecDelete(&x);
       bfVecDelete(&tmp1);
   }
+
+  sprintf(filename, "randvecs_cheb_p%i_kappa%.1e_nu%.1e.bin", p, kappa, nu);
+  bfMatDenseRealSave(randvecs, filename);
 
   sprintf(filename, "matvecs_cheb_p%i_kappa%.1e_nu%.1e.bin", p, kappa, nu);
   bfMatDenseRealSave(matvecs, filename);

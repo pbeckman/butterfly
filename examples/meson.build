@@ -2,10 +2,13 @@ subdir('fast_direct_solver')
 subdir('fiedler_tree')
 subdir('lbo')
 subdir('multiple_scattering')
-subdir('radiosity')
 subdir('simple')
 subdir('tree_evaluator')
 subdir('covariance')
+
+if get_option('embree').enabled()
+  subdir('radiosity')
+endif
 
 # Extra files that should be copied over, such as common files,
 # resources, etc.

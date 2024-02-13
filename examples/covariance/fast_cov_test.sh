@@ -3,7 +3,7 @@ set -o nullglob
 
 if [ "$#" -ne 3 ]; then
     echo "usage: mesh.obj kappa nu"
-    exit
+    return
 fi
 
 MESH=$1
@@ -14,9 +14,9 @@ KAPPA=$2
 NU=$3
 NUM_SAMPLES=100
 
-REFTOL=1e-4
+REFTOL=1e-5
 TOLS=(1e-1 1e-2 1e-3 $REFTOL)
-LOGPS=(2 4 6)
+LOGPS=(2 4 6 8)
 
 JULIA=true
 
