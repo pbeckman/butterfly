@@ -1,4 +1,4 @@
-using FileIO, LinearAlgebra, SparseArrays, Printf, DelimitedFiles, Meshes, GeometryBasics, MeshIO, Plots, LaTeXStrings
+using FileIO, LinearAlgebra, SparseArrays, Printf, DelimitedFiles, Meshes, GeometryBasics, MeshIO, Plots, Plots.Measures, LaTeXStrings
 import GLMakie as Mke
 
 include("utils.jl")
@@ -55,27 +55,28 @@ g(l) = matern_sdf(k, nu, l)
 
 ## compute and plot truncation errors 
 
-npl     = 5
+npl     = 4
 rs      = round.(Int64, range(2, stop=length(Lam)-1, length=100))
 errs    = zeros(2, length(rs))
 normC   = norm(g.(Lam).^2)
 pl_lam = plot(
-    1:length(Lam), Lam, label="true", line=(:black, 2),
-    title=@sprintf(
-        "Eigenvalues\n%s, verts=%i", 
-        split(mesh_file, "/")[end], n
-        ),
-    xlabel=L"\ell"
+    1:length(Lam), Lam, label="true", line=(:black, 1),
+    # title=@sprintf(
+    #     "Eigenvalues\n%s, verts=%i", 
+    #     split(mesh_file, "/")[end], n
+    #     ),
+    xlabel=L"\ell", ylabel=L"$\lambda_\ell$",
+    xlims=[0,5000], ylims=[0,5], rightmargin=5mm
     )
 pl_g = plot(
     1:length(Lam), g.(Lam), label="true", line=(:black, 2),
-    yscale=:log10,
+    # yscale=:log10,
     legend=:bottomleft,
     ylims=[max(minimum(g.(Lam)), 1e-20), 1.0],
-    title=@sprintf(
-        "Spectrum of covariance\n%s, verts=%i\nκ=%1.1e, ν=%1.1e", 
-        split(mesh_file, "/")[end], n, k, nu
-        ),
+    # title=@sprintf(
+    #     "Spectrum of covariance\n%s, verts=%i\nκ=%1.1e, ν=%1.1e", 
+    #     split(mesh_file, "/")[end], n, k, nu
+    #     ),
     xlabel=L"\ell"
     )
 for (i, r) in enumerate(rs)
@@ -91,37 +92,41 @@ for (i, r) in enumerate(rs)
     ls = collect(m*(1:length(Lam)) .+ b)
     ls[1:r] .= Lam[1:r] # don't use linear fit for already computed eigenvalues
     errs[2,i] = norm(g.(ls[1+r:end]).^2) / norm(g.(ls).^2)
-    if i % div(length(rs), npl) == 0
-        scatter!(pl_lam, r-nf+1:r, Lam[r-nf+1:r], c=palette(:default)[div(i-1,div(length(rs), npl))+1], label="", markerstrokewidth=0, markersize=2)
+    if i % div(length(rs), npl) == 0 && r + div(length(rs), npl) < n-30
+        scatter!(pl_lam, [r-nf+1, r], [Lam[r-nf+1], Lam[r]], c=palette(:default)[div(i-1,div(length(rs), npl))+1], label="", markerstrokewidth=0, markersize=3)
         plot!(pl_lam, 
-            r-nf+1:length(Lam), ls[r-nf+1:end], label="rank $r",
-            line=(palette(:default)[div(i-1,div(length(rs), npl))+1], 1, :dash)
+            r-nf+1:length(Lam), ls[r-nf+1:end], label="ℓ=$r",
+            line=(palette(:default)[div(i-1,div(length(rs), npl))+1], 2, :dot)
             )
         plot!(pl_g,   
-            r-nf+1:length(Lam), g.(ls[r-nf+1:end]), label="rank $r",
-            line=(palette(:default)[div(i-1,div(length(rs), npl))+1], 1, :dash)
+            r-nf+1:length(Lam), g.(ls[r-nf+1:end]), label="ℓ=$r",
+            line=(palette(:default)[div(i-1,div(length(rs), npl))+1], 2, :dot)
             )
     end
 end
-savefig(pl_lam, @sprintf("output/%s_est_eigenvalues.png", meshname))
-savefig(pl_g,   @sprintf("output/%s_est_covspectrum_kappa%.1e_nu%.1e.png", meshname, k, nu))
+# savefig(pl_lam, @sprintf("output/%s_est_eigenvalues.png", meshname))
+# savefig(pl_g,   @sprintf("output/%s_est_covspectrum_kappa%.1e_nu%.1e.png", meshname, k, nu))
+
+#
 
 errs[errs .< 1e-20] .= NaN
 pl = plot(
     rs, 
     errs', 
     labels=reshape([
-        L"\parallel C - C_{\ell} \parallel", 
+        L"\parallel \Sigma - \Sigma_{\ell} \parallel / \parallel \Sigma \parallel", 
         "error estimator"],:,2), 
     legend=:bottomleft,
     linestyle=[:solid :dash], linewidth=2,
     yscale=:log10,
-    title=@sprintf(
-        "Relative truncation error\n%s, verts=%i\nκ=%1.1e, ν=%1.1e", 
-        split(mesh_file, "/")[end], n, k, nu
-        ),
-    xlabel=L"number of computed eigenmodes $\ell$",
+    # title=@sprintf(
+    #     "Relative truncation error\n%s, verts=%i\nκ=%1.1e, ν=%1.1e", 
+    #     split(mesh_file, "/")[end], n, k, nu
+    #     ),
+    xlabel=L"$\ell$", 
+    # ylabel="relative truncation error",
     dpi=200
     )
 
+##
 savefig(pl, @sprintf("output/%s_est_truncation_kappa%.1e_nu%.1e.png", meshname, k, nu))

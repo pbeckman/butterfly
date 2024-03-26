@@ -106,7 +106,7 @@ lbo_normsq  = getindex.(lbo_frobsq, 1)
 
 # norms
 cheb_norm = sqrt.(cheb_normsq)
-lbo_norm  = sqrt.(lbo_normsq)
+@show lbo_norm  = sqrt.(lbo_normsq)
 
 # standard deviation of norm squared
 cheb_stdsq = sqrt.(getindex.(cheb_frobsq, 2))
@@ -120,15 +120,18 @@ lbo_lowers  = lbo_norm - sqrt.(lbo_normsq - 2*lbo_stdsq)
 
 ##
 
+gr(size=(400,300))
 pl = plot(
-    title=@sprintf(
-        "%s, verts=%i\nκ=%1.1e, ν=%1.1e", 
-        split(mesh_file, "/")[end], n, k, nu
-        ),
+    # title=@sprintf(
+    #     "%s, verts=%i\nκ=%1.1e, ν=%1.1e", 
+    #     split(mesh_file, "/")[end], n, k, nu
+    #     ),
     xscale=:log10,
     yscale=:log10,
     xlabel="time per sample (s)",
-    ylabel=L"||C - \tilde{C}||"
+    ylabel=L"$|| \Sigma - \tilde{\Sigma} \ || / || \Sigma ||$",
+    xlims=[1e-3, 3],
+    ylims=[6e-4, 1.1]
     )
 plot!(pl,
     cheb_timings, cheb_norm, 
@@ -143,3 +146,4 @@ plot!(pl,
     marker=4, msw=1, markercolor=:blue
     )
 savefig(pl, @sprintf("output/%s_est_error_kappa%.1e_nu%.1e.png", meshname, k, nu))
+savefig(pl, @sprintf("output/%s_est_error_kappa%.1e_nu%.1e.pdf", meshname, k, nu))
