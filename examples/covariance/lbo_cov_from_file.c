@@ -61,33 +61,36 @@ static BfVec *cov_matvec(BfVec *v, BfMat const *Phi, BfMat const *GammaLam, BfPe
 
 int main(int argc, char const *argv[]) {
   if (argc < 5) {
-    printf("usage: %s mesh.obj kappa nu num_samples [tol] [fraction] [rowTreeOffset] [freqTreeDepth]\n", argv[0]);
+    printf("usage: %s L_rowptr.bin L_colind.bin L_data.bin M_rowptr.bin M_colind.bin M_data.bin points.bin kappa nu num_samples [tol] [fraction] [rowTreeOffset] [freqTreeDepth]\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
   bfSeed(0);
   bfSetLogLevel(BF_LOG_LEVEL_WARN);
 
-  char const *objPath = argv[1];
-  kappa = atof(argv[2]);
-  nu = atof(argv[3]);
-  BfSize numSamples = atoi(argv[4]);
+  char const *LRowptrPath = argv[1];
+  char const *LColindPath = argv[2];
+  char const *LDataPath = argv[3];
+  char const *MRowptrPath = argv[4];
+  char const *MColindPath = argv[5];
+  char const *MDataPath = argv[6];
+  char const *PointsPath = argv[7];
+  kappa = atof(argv[8]);
+  nu = atof(argv[9]);
+  BfSize numSamples = atoi(argv[10]);
 
-  BfReal tol = argc > 5 ? strtod(argv[5], NULL) : 1e-3;
-  BfReal fraction = argc > 6 ? strtod(argv[6], NULL) : 1.0;
-  BfSize rowTreeOffset = argc > 7 ? strtoull(argv[7], NULL, 10) : 0;
-  BfSize freqTreeDepth = argc > 8 ? strtoull(argv[8], NULL, 10) : BF_SIZE_BAD_VALUE;
+  BfReal tol = argc > 11 ? strtod(argv[11], NULL) : 1e-3;
+  BfReal fraction = argc > 12 ? strtod(argv[12], NULL) : 1.0;
+  BfSize rowTreeOffset = argc > 13 ? strtoull(argv[13], NULL, 10) : 0;
+  BfSize freqTreeDepth = argc > 14 ? strtoull(argv[14], NULL, 10) : BF_SIZE_BAD_VALUE;
 
-  BfTrimesh *trimesh = bfTrimeshNewFromObjFile(objPath);
+  BfPoints3 *points = bfPoints3NewFromBinaryFile(PointsPath);
 
-  BfSize numVerts = bfTrimeshGetNumVerts(trimesh);
-  BfSize numEigs = (BfSize)(fraction*numVerts);
-
-  printf("triangle mesh with %lu verts\n", numVerts);
-  printf("streaming %lu eigenpairs\n", numEigs);
+  BfSize numPoints = bfPoints3GetSize(points);
+  BfSize numEigs = fraction*numPoints;
 
   BfOctree octree;
-  bfOctreeInit(&octree, bfTrimeshGetVertsConst(trimesh), NULL, /* maxLeafSize: */ 1);
+  bfOctreeInit(&octree, points, NULL, /* maxLeafSize: */ 1);
 
   BfTree *rowTree = bfOctreeToTree(&octree);
   BfSize rowTreeMaxDepth = bfTreeGetMaxDepth(rowTree);
@@ -99,12 +102,11 @@ int main(int argc, char const *argv[]) {
   if (freqTreeDepth == BF_SIZE_BAD_VALUE)
     freqTreeDepth = rowTreeMaxDepth - 3;
 
-  BfMat *L, *M;
-  bfTrimeshGetLboFemDiscretization(trimesh, &L, &M);
-  printf("set up FEM discretization [%0.1fs]\n", bfToc());
-
-  bfMatCsrRealDump(bfMatToMatCsrReal(L), "L_rowptr.bin", "L_colind.bin", "L_data.bin");
-  bfMatCsrRealDump(bfMatToMatCsrReal(M), "M_rowptr.bin", "M_colind.bin", "M_data.bin");
+  BfMat *L = bfMatCsrRealToMat(
+    bfMatCsrRealNewFromBinaryFiles(LRowptrPath, LColindPath, LDataPath));
+  BfMat *M = bfMatCsrRealToMat(
+    bfMatCsrRealNewFromBinaryFiles(MRowptrPath, MColindPath, MDataPath));
+  printf("loaded stiffness and mass matrices [%0.1fs]\n", bfToc());
 
   BfReal lamMax = bfGetMaxEigenvalue(L, M);
   printf("maximum eigenvalue: lambda = %g [%0.1fs]\n", lamMax, bfToc());
@@ -130,16 +132,11 @@ int main(int argc, char const *argv[]) {
   BfFacStreamer *facStreamer = bfFacStreamerNew();
   bfFacStreamerInit(facStreamer, &spec);
 
-  BfReal eigTime = 0; // Time spent streaming eigenbands
-  BfReal facTime = 0; // Time spent doing everything else (butterflying, etc)
   BfSize nfit = 100; // number of eigenvalues to fit for extrapolation
   BfReal err_est = 1.0;
   while (!bfFacStreamerIsDone(facStreamer) && err_est > tol) {
-    BfLboFeedResult result =
-      bfLboFeedFacStreamerNextEigenband(facStreamer, freqs, L, M);
+    bfLboFeedFacStreamerNextEigenband(facStreamer, freqs, L, M);
     if (freqs->size >= numEigs) break;
-
-    BfReal t0Loop = bfToc();
 
     // Don't try to extrapolate if we don't have enough frequencies:
     if (freqs->size <= nfit) continue;
@@ -164,7 +161,7 @@ int main(int argc, char const *argv[]) {
     BfReal b = yhat - m*xhat;
 
     numer = 0;
-    for (BfSize i = freqs->size; i < numVerts; ++i) {
+    for (BfSize i = freqs->size; i < numPoints; ++i) {
       numer += pow(gamma_(m*i + b), 4);
     }
     denom = numer;
@@ -173,24 +170,18 @@ int main(int argc, char const *argv[]) {
       denom += pow(gamma_(lam), 4);
     }
     err_est = sqrt(numer)/sqrt(denom);
-
-    BfReal loopTime = bfToc() - t0Loop;
-    eigTime += result.eigenbandTime;
-    facTime += loopTime + result.totalTime - result.eigenbandTime;
-
     printf("truncation error estimate after %lu eigenpairs is %.2e\n", freqs->size, err_est);
   }
+  double precomp_time = bfToc();
 
-  printf("finished streaming BF (actually factorized %lu eigenpairs):\n", freqs->size);
-  printf("  time spent streaming eigenbands: %0.1fs\n", eigTime);
-  printf("  time spent building BF: %0.1fs\n", facTime);
+  printf("finished streaming BF (actually factorized %lu eigenpairs) [%0.1fs]\n", freqs->size, precomp_time);
 
   BfFacSpan *facSpan = bfFacStreamerGetFacSpan(facStreamer);
   BfMat *Phi = bfFacSpanGetMat(facSpan, BF_POLICY_VIEW);
 
   BfReal numBytesCompressed = bfMatNumBytes(Phi);
-  BfReal numBytesUncompressed = sizeof(BfReal)*numVerts*freqs->size;
-  BfReal numBytesUntruncated  = sizeof(BfReal)*numVerts*numVerts;
+  BfReal numBytesUncompressed = sizeof(BfReal)*numPoints*freqs->size;
+  BfReal numBytesUntruncated  = sizeof(BfReal)*numPoints*numPoints;
 
   printf("  compressed   size: %.1f MB\n", numBytesCompressed/pow(1024, 2));
   printf("  uncompressed size: %.1f MB\n", numBytesUncompressed/pow(1024, 2));
@@ -216,7 +207,6 @@ int main(int argc, char const *argv[]) {
 
   /** Time how long it takes to sample z numSamples times. */
 
-  printf("computing %i samples\n", numSamples);
   bfToc();
   for (BfSize _ = 0; _ < numSamples; ++_) {
     z = sample_z(Phi, GammaLam, rowPerm);
@@ -231,15 +221,9 @@ int main(int argc, char const *argv[]) {
   sprintf(filename, "performance_kappa%.1e_nu%.1e.txt", kappa, nu);
   sprintf(
     line,
-<<<<<<< HEAD
-    "%.1e\t%i\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n", 
-    tol, freqs->size, precomp_time, sampling_time/numSamples,
-    numBytesCompressed/pow(1024, 2), 
-=======
     "%.1e\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n",
-    tol, facTime, sampling_time/numSamples,
+    tol, precomp_time, sampling_time/numSamples,
     numBytesCompressed/pow(1024, 2),
->>>>>>> 8daa4431879ca26537b151174f3324f83f0cb9ce
     numBytesUncompressed/pow(1024, 2),
     numBytesUntruncated/pow(1024, 2)
     );
@@ -250,7 +234,7 @@ int main(int argc, char const *argv[]) {
   /** Evaluate the covariance function with respect to a fixed point
    ** on the mesh. */
 
-  BfVec *e = bfVecRealToVec(bfVecRealNewStdBasis(numVerts, 0));
+  BfVec *e = bfVecRealToVec(bfVecRealNewStdBasis(numPoints, 0));
   BfVec *c = cov_matvec(e, Phi, GammaLam, rowPerm, revRowPerm);
   sprintf(filename, "c_lbo_tol%.0e_kappa%.1e_nu%.1e.bin", tol, kappa, nu);
   bfVecSave(c, filename);
@@ -275,32 +259,24 @@ int main(int argc, char const *argv[]) {
 
   bfSeed(0);
   BfSize s = numSamples;
-  BfMatDenseReal *randvecs = bfMatDenseRealNewZeros(numVerts, s);
-  BfMatDenseReal *matvecs  = bfMatDenseRealNewZeros(numVerts, s);
+  BfMatDenseReal *matvecs = bfMatDenseRealNewZeros(numPoints, s);
 
   printf("computing %lu matvecs with covariance\n", s);
   for (BfSize j = 0; j < s; ++j) {
-      BfVec *x = bfVecRealToVec(bfVecRealNewRandn(numVerts));
-
-      // Set column of inputs:
-      bfMatDenseRealSetCol(randvecs, j, x);
+      BfVec *x = bfVecRealToVec(bfVecRealNewRandn(numPoints));
 
       // apply covariance matrix
       BfVec *tmp1 = cov_matvec(x, Phi, GammaLam, rowPerm, revRowPerm);
-      
-      // Set column of outputs:
+
+      // Set column of results:
       bfMatDenseRealSetCol(matvecs, j, tmp1);
 
       // Clean up:
       bfVecDelete(&x);
       bfVecDelete(&tmp1);
   }
-  printf("saving random vectors and matvecs\n");
 
-  sprintf(filename,"randvecs_lbo_tol%.0e_kappa%.1e_nu%.1e.bin", tol, kappa, nu);
-  bfMatDenseRealSave(randvecs, filename);
-
-  sprintf(filename,"matvecs_lbo_tol%.0e_kappa%.1e_nu%.1e.bin", tol, kappa, nu);
+  sprintf(filename, "matvecs_lbo_tol%.0e_kappa%.1e_nu%.1e.bin", tol, kappa, nu);
   bfMatDenseRealSave(matvecs, filename);
 
   /* Clean up */
@@ -308,5 +284,5 @@ int main(int argc, char const *argv[]) {
   // bfOctreeDeinit(&octree);
   bfMatDelete(&M);
   bfMatDelete(&L);
-  bfTrimeshDeinitAndDealloc(&trimesh);
+  bfPoints3DeinitAndDealloc(&points);
 }

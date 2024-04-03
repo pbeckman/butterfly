@@ -1,4 +1,8 @@
-project('butterfly', 'c', 'cython', default_options : ['c_std=c11'])
+project(
+  'butterfly',
+  'c', 'cpp', 'cython',
+  default_options : ['c_std=c11', 'cpp_std=c++11'],
+  meson_version : '>= 1.2.2')
 
 fs = import('fs')
 pkg = import('pkgconfig')
@@ -10,6 +14,9 @@ if get_option('buildtype') == 'debug'
 endif
 if get_option('embree').enabled()
   add_project_arguments('-DBF_EMBREE', language : 'c')
+endif
+if get_option('mfem').enabled()
+  add_project_arguments('-DBF_MFEM', language : 'c')
 endif
 if get_option('python').enabled()
   add_project_arguments('-DBF_PYTHON', language : 'c')
@@ -28,7 +35,7 @@ endif
 cc = meson.get_compiler('c')
 
 fortran_dep = cc.find_library('gfortran', required : true)
-# cholmod_dep = cc.find_library('cholmod', required : true)
+cholmod_dep = cc.find_library('cholmod', required : true)
 m_dep = meson.get_compiler('c').find_library('m', required : false)
 umfpack_dep = cc.find_library('umfpack', required : true)
 arpack_dep = dependency('arpack', required : true)
@@ -81,7 +88,7 @@ endif
 
 butterfly_dependencies = [
   fortran_dep,
-#  cholmod_dep,
+  cholmod_dep,
   m_dep,
   arpack_dep,
   gsl_dep,
@@ -114,7 +121,9 @@ butterfly_lib_src = [
   'src/bessel.c',
   'src/cheb.c',
   'src/circle.c',
-#  'src/cholmod.c',
+  'src/chol.c',
+  'src/chol_csr_real.c',
+  'src/cholmod.c',
   'src/disjoint_interval_list.c',
   'src/dtype.c',
   'src/ellipse.c',
@@ -145,8 +154,6 @@ butterfly_lib_src = [
   'src/mat_coo_complex.c',
   'src/mat_coo_real.c',
   'src/mat_csr_real.c',
-#  'src/mat_csr_real.cholmod.c',
-  'src/mat_csr_real.umfpack.c',
   'src/mat_dense.c',
   'src/mat_dense_complex.c',
   'src/mat_dense_real.c',
