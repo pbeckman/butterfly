@@ -570,150 +570,25 @@ static BfReal dfds(BfReal s, dfdsContext const *c) {
 static void addCutFacesAndVerts_case111(NodalDomainBuilder *builder) {
   BfTrimesh const *trimesh = builder->trimesh;
 
-  BfSize iBd = BF_SIZE_BAD_VALUE; /* Index of vertex on boundary */
-  BfSize iInt = BF_SIZE_BAD_VALUE; /* Index of vertex in interior */
-  BfReal phiInt = BF_NAN; /* Value of phi at interior vertex */
+  BfSize iPos = builder->iPos[0];
+  BfSize iNeg = builder->iNeg[0];
+  BfSize iZero = builder->iZero[0];
 
-  /* TODO: instead of checking whether the value of phi is equal to
-   * +/- tol, we should use a mask to mark these points (these are the
-   * points on the boundary where phi *was* equal to zero, but which
-   * have been perturbed to push them into the correct nodal
-   * domains)
-   *
-   * TODO: even better, we should be able to just leave these as
-   * zeros without perturbing... */
-  if (builder->phiPos[0] == BF_EPS && bfTrimeshIsBoundaryVertex(trimesh, builder->iPos[0])) {
-    iBd = builder->iPos[0];
-    iInt = builder->iNeg[0];
-    phiInt = builder->phiNeg[0];
-  } else if (builder->phiNeg[0] == -BF_EPS && bfTrimeshIsBoundaryVertex(trimesh, builder->iNeg[0])) {
-    iBd = builder->iNeg[0];
-    iInt = builder->iPos[0];
-    phiInt = builder->phiPos[0];
-  } else {
-    BF_DIE();
-  }
+  BfReal phiPos = builder->phiPos[0];
+  BfReal phiNeg = builder->phiNeg[0];
 
-  BfSize2 edge = {iBd, iInt};
-  SORT2(edge[0], edge[1]);
+  bool bdPos = bfTrimeshIsBoundaryVertex(trimesh, iPos);
+  bool bdNeg = bfTrimeshIsBoundaryVertex(trimesh, iNeg);
+  bool bdZero = bfTrimeshIsBoundaryVertex(trimesh, iZero);
 
-  BfSize edgeInd = bfTrimeshGetEdgeIndex(builder->trimesh, edge);
-  BF_ASSERT(edgeInd != BF_SIZE_BAD_VALUE);
+  /* Triangulation messiness. Maybe some kind of super narrow pinch
+   * point. Either way, we probably want to try skipping this face. */
+  if (bdPos && bdNeg && bdZero) return;
 
-  BfSize2 incFaceInds = {BF_SIZE_BAD_VALUE, BF_SIZE_BAD_VALUE};
-  BfSize numIncFaces = bfTrimeshGetFacesIncOnEdge(builder->trimesh, edgeInd, incFaceInds);
-  BF_ASSERT(numIncFaces == 2);
+  (void)phiPos;
+  (void)phiNeg;
 
-  BfSize iOp = BF_SIZE_BAD_VALUE;
-  for (BfSize j = 0; j < 2; ++j) {
-    BfSize const *f = bfTrimeshGetFaceConstPtr(trimesh, incFaceInds[j]);
-    for (BfSize k = 0; k < 3; ++k) {
-      if (f[k] != builder->iZero[0] && f[k] != iBd && f[k] != iInt) {
-        BF_ASSERT(iOp == BF_SIZE_BAD_VALUE);
-        iOp = f[k];
-      }
-    }
-  }
-  BF_ASSERT(iOp != BF_SIZE_BAD_VALUE);
-
-  BfReal phiOp = bfRealArrayGetValue(builder->phi, iOp);
-  BF_ASSERT((phiInt < 0 && phiOp > 0) ^ (phiInt > 0 && phiOp < 0));
-
-  BfReal t = -phiInt/(phiOp - phiInt);
-  BF_ASSERT(0 < t && t < 1);
-
-  BfPoint3 vInt, vBd, vZero, vOp;
-  bfTrimeshGetVertex(builder->trimesh, iInt, vInt);
-  bfTrimeshGetVertex(builder->trimesh, iBd, vBd);
-  bfTrimeshGetVertex(builder->trimesh, builder->iZero[0], vZero);
-  bfTrimeshGetVertex(builder->trimesh, iOp, vOp);
-
-  /* Find the first cut vertex (`vt`): */
-
-  BfVector3 dv;
-  BfPoint3 vt;
-  bfPoint3Sub(vOp, vInt, dv);
-  bfPoint3GetPointOnRay(vInt, dv, t, vt);
-
-  dfdsContext context = {.vInt = vInt, .vZero = vZero, .vt = vt};
-  bfPoint3Sub(vBd, vInt, context.dv);
-
-  /* Find the second cut vertex (`vs`): */
-
-  BfReal s = BF_NAN;
-  bool foundZero = bfFindZeroOnInterval(
-    (BfReal (*)(BfReal, void *))dfds, 0, 1, &context, &s);
-  if (foundZero) {
-    BF_ASSERT(0 < s && s < 1);
-  } else {
-    s = bfPoint3Dist(vInt, vt) < bfPoint3Dist(vBd, vt) ? 0 : 1;
-  }
-
-  BfPoint3 vs;
-  bfPoint3GetPointOnRay(vInt, context.dv, s, vs);
-
-  if (s == 1) {
-    BF_ASSERT(bfPoint3Equal(vs, vBd));
-
-    /* Don't need to add a new face in this case */
-    return;
-  }
-
-  // TODO: need to figure out what to do here
-  BF_ASSERT(0 < s && s < 1);
-
-  /* Add new cut edges corresponding to `vt` and `vs`: */
-
-  // TODO: don't actually need to add `vt` here---when we traverse
-  // the opposite face, it will get added anyway...
-
-  BfReal const *vCut[2] = {vt, vs};
-
-  BfSize2 cutEdge[2] = {
-    /* vt: */ {iInt, iOp},
-    /* vs: */ {iInt, iBd}
-  };
-  SORT2(cutEdge[0][0], cutEdge[0][1]);
-  SORT2(cutEdge[1][0], cutEdge[1][1]);
-
-  bool addedCutEdge[2];
-
-  BfSize iCut[2] = {BF_SIZE_BAD_VALUE, BF_SIZE_BAD_VALUE};
-  for (BfSize j = 0; j < 2; ++j) {
-    addedCutEdge[j] = appendCutEdge(builder, cutEdge[j]);
-    bool addedCutVertAlready = bfPoints3ContainsApprox(builder->cutVerts, vCut[j], builder->tol);
-    if (addedCutEdge[j]) {
-      BF_ASSERT(!addedCutVertAlready);
-      iCut[j] = bfPoints3GetSize(builder->cutVerts);
-      bfPoints3Append(builder->cutVerts, vCut[j]);
-    } else if (addedCutVertAlready) {
-      iCut[j] = bfPoints3FindApprox(builder->cutVerts, vCut[j], builder->tol);
-      BF_ASSERT(iCut[j] != BF_SIZE_BAD_VALUE);
-    } else {
-      /* We added a cut vertex for this edge previously, but it no
-       * longer matches---update it, since we have an improved cut
-       * vertex now */
-      BF_ASSERT(builder->numCutEdges == builder->cutVerts->size);
-      BfSize k = 0;
-      for (; k < builder->numCutEdges; ++k)
-        if (builder->cutEdges[k][0] == cutEdge[j][0] && builder->cutEdges[k][1] == cutEdge[j][1])
-          break;
-      BF_ASSERT(k < builder->numCutEdges);
-      bfPoints3Set(builder->cutVerts, k, vCut[j]);
-      iCut[j] = k;
-    }
-  }
-
-  /* Add new cut face: */
-
-  BfSize iZeroNew = bfPoints3FindApprox(builder->verts, vZero, builder->tol);
-  BF_ASSERT(iZeroNew != BF_SIZE_BAD_VALUE);
-
-  BfSize iNew = bfPoints3FindApprox(builder->verts, phiInt < 0 ? vInt : vBd, builder->tol);
-  BF_ASSERT(iNew != BF_SIZE_BAD_VALUE);
-
-  BfSize3 newFace = {iZeroNew, builder->verts->size + iCut[1], iNew};
-  appendFace(builder, newFace);
+  BF_DIE();
 }
 
 /* Find the zero level set and accumulate new cut faces. */
