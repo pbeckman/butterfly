@@ -238,15 +238,15 @@ static void invalidateCutFacesAndVertsVars(NodalDomainBuilder *builder) {
     = builder->phiNeg[0] = builder->phiNeg[1] = BF_NAN;
 }
 
-static bool prepareForAddCutFacesAndVertsIteration(NodalDomainBuilder *builder, BfSize faceIndex) {
-  invalidateCutFacesAndVertsVars(builder);
-
-  BfTrimesh const *trimesh = builder->trimesh;
-  BfSize const *face = bfTrimeshGetFaceConstPtr(trimesh, faceIndex);
-
-  BfReal phiFace[3];
+static void getPhiFace(NodalDomainBuilder const *builder,
+                       BfSize faceIndex, BfReal phiFace[3]) {
+  BfSize const *face = bfTrimeshGetFaceConstPtr(builder->trimesh, faceIndex);
   for (BfSize j = 0; j < 3; ++j)
     phiFace[j] = bfRealArrayGetValue(builder->phi, face[j]);
+}
+
+static bool shouldCutFace(NodalDomainBuilder const *builder, BfSize faceIndex) {
+  BfReal phiFace[3]; getPhiFace(builder, faceIndex, phiFace);
 
   /* We've already established that there should be no nodal faces: */
   if (phiFace[0] == 0 && phiFace[1] == 0 && phiFace[2] == 0) BF_DIE();
@@ -255,6 +255,15 @@ static bool prepareForAddCutFacesAndVertsIteration(NodalDomainBuilder *builder, 
   if ((phiFace[0] <= 0 && phiFace[1] <= 0 && phiFace[2] <= 0)
     || (phiFace[0] >= 0 && phiFace[1] >= 0 && phiFace[2] >= 0))
     return false;
+
+  return true;
+}
+
+static bool prepareForAddCutFacesAndVertsIteration(NodalDomainBuilder *builder, BfSize faceIndex) {
+  invalidateCutFacesAndVertsVars(builder);
+
+  BfSize const *face = bfTrimeshGetFaceConstPtr(builder->trimesh, faceIndex);
+  BfReal phiFace[3]; getPhiFace(builder, faceIndex, phiFace);
 
   /* Figure out which verts are positive, negative, and zero: */
   builder->numPos = builder->numNeg = builder->numZero = 0;
@@ -708,8 +717,9 @@ static void addCutFacesAndVerts(NodalDomainBuilder *builder) {
   BfTrimesh const *trimesh = builder->trimesh;
 
   for (BfSize faceIndex = 0; faceIndex < bfTrimeshGetNumFaces(trimesh); ++faceIndex) {
-    if (!prepareForAddCutFacesAndVertsIteration(builder, faceIndex))
+    if (!shouldCutFace(builder, faceIndex))
       continue;
+    prepareForAddCutFacesAndVertsIteration(builder, faceIndex);
     if (builder->numPos == 2 && builder->numNeg == 1)
       addCutFacesAndVerts_case21(builder);
     else if (builder->numPos == 1 && builder->numNeg == 2)
