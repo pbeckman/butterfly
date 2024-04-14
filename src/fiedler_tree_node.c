@@ -205,7 +205,7 @@ static void repairTopologyOfNodalDomains(BfTrimesh const *trimesh, BfRealArray *
 
     nodalDomainType[i] = POSITIVE;
 
-    for (BfSize j = 0; j < bfTrimeshGetNumVertexNeighbors(trimesh, i); ++i ) {
+    for (BfSize j = 0; j < bfTrimeshGetNumVertexNeighbors(trimesh, i); ++j ) {
       BfSize iNb = bfTrimeshGetVertexNeighbor(trimesh, i, j);
       if (nodalDomainType[iNb] == UNKNOWN
           && bfRealArrayGetValue(phiFiedler, iNb) > 0
@@ -226,7 +226,7 @@ static void repairTopologyOfNodalDomains(BfTrimesh const *trimesh, BfRealArray *
 
     nodalDomainType[i] = NEGATIVE;
 
-    for (BfSize j = 0; j < bfTrimeshGetNumVertexNeighbors(trimesh, i); ++i ) {
+    for (BfSize j = 0; j < bfTrimeshGetNumVertexNeighbors(trimesh, i); ++j ) {
       BfSize iNb = bfTrimeshGetVertexNeighbor(trimesh, i, j);
       if (nodalDomainType[iNb] == UNKNOWN
           && bfRealArrayGetValue(phiFiedler, iNb) < 0
