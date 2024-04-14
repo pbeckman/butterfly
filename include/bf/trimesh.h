@@ -9,6 +9,9 @@ BfTrimesh *bfTrimeshNewFromVertsAndFaces(BfPoints3 const *verts, BfSize numFaces
 void bfTrimeshInitFromBinaryFiles(BfTrimesh *trimesh, char const *vertsPath, char const *facesPath);
 void bfTrimeshInitFromObjFile(BfTrimesh *trimesh, char const *objPath);
 void bfTrimeshInitFromVertsAndFaces(BfTrimesh *trimesh, BfPoints3 const *verts, BfSize numFaces, BfSize3 const *faces);
+#ifdef BF_EMBREE
+void bfTrimeshInitEmbree(BfTrimesh *trimesh);
+#endif
 void bfTrimeshDeinit(BfTrimesh *trimesh);
 void bfTrimeshDealloc(BfTrimesh **trimesh);
 void bfTrimeshDeinitAndDealloc(BfTrimesh **trimesh);
