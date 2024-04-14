@@ -452,8 +452,11 @@ static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
     bfPoint3Dist(vt[0], vt[1]) <= builder->tol
   };
 
-  // TODO: quad collapsed to an edge:
-  BF_ASSERT(!(coalesced[0] && coalesced[1]));
+  /* If both `vt`s have collapsed onto the corresponding `v0`s, then
+   * we picked up a part of the boundary of the nodal domain. There's
+   * no need to add new points or faces for this case because it will
+   * get covered by an adjacent face. */
+  if (coalesced[0] && coalesced[1]) return;
 
   /* Only way this can happens is if the face numerically has zero
    * diameter... bad. */
