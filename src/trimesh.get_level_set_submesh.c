@@ -245,9 +245,7 @@ static void getPhiFace(NodalDomainBuilder const *builder,
     phiFace[j] = bfRealArrayGetValue(builder->phi, face[j]);
 }
 
-static bool shouldCutFace(NodalDomainBuilder const *builder, BfSize faceIndex) {
-  BfReal phiFace[3]; getPhiFace(builder, faceIndex, phiFace);
-
+static bool shouldCutFace(NodalDomainBuilder const *builder, BfReal const phiFace[3]) {
   /* We've already established that there should be no nodal faces: */
   if (phiFace[0] == 0 && phiFace[1] == 0 && phiFace[2] == 0) BF_DIE();
 
@@ -259,11 +257,8 @@ static bool shouldCutFace(NodalDomainBuilder const *builder, BfSize faceIndex) {
   return true;
 }
 
-static bool prepareForAddCutFacesAndVertsIteration(NodalDomainBuilder *builder, BfSize faceIndex) {
+static bool prepareToCutFace(NodalDomainBuilder *builder, BfReal const phiFace[3], BfSize const face[3]) {
   invalidateCutFacesAndVertsVars(builder);
-
-  BfSize const *face = bfTrimeshGetFaceConstPtr(builder->trimesh, faceIndex);
-  BfReal phiFace[3]; getPhiFace(builder, faceIndex, phiFace);
 
   /* Figure out which verts are positive, negative, and zero: */
   builder->numPos = builder->numNeg = builder->numZero = 0;
@@ -421,13 +416,17 @@ static void addCutFacesAndVerts_case21(NodalDomainBuilder *builder) {
 
 /* "case12" = "1 positive vert and 2 negative verts" */
 static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
-  BfPoint3 v0[2], v;
+  BfPoint3 v0[2], v1;
   bfTrimeshGetVertex(builder->trimesh, builder->iNeg[0], v0[0]);
   bfTrimeshGetVertex(builder->trimesh, builder->iNeg[1], v0[1]);
-  bfTrimeshGetVertex(builder->trimesh, builder->iPos[0], v);
+  bfTrimeshGetVertex(builder->trimesh, builder->iPos[0], v1);
 
-  /* Compute `t` and `vt`. Afterwards, we'll have determined the
-   * coordinates of three face vertices. */
+  /* Compute `t` and `vt`, which are the parameter and point
+   * (respectively) approximating the local of the zero level set of
+   * `builder->phi` on [v0[0], v1] and [v0[1], v1].
+   *
+   * Afterwards, we'll have determined the coordinates of three face
+   * vertices. */
   BfReal t[2];
   BfPoint3 vt[2];
   for (BfSize j = 0; j < 2; ++j) {
@@ -435,7 +434,7 @@ static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
     BF_ASSERT(0 <= t[j] && t[j] <= 1);
 
     BfPoint3 dv;
-    bfPoint3Sub(v, v0[j], dv);
+    bfPoint3Sub(v1, v0[j], dv);
     bfPoint3GetPointOnRay(v0[j], dv, t[j], vt[j]);
 
     /* Due to numerical roundoff, `vt[j]` may exactly equal an existing
@@ -445,6 +444,8 @@ static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
       t[j] = BF_NAN;
   }
 
+  /* Check if any of the points coincide with one another. This will
+   * determine how we go about cutting new triangles into the mesh. */
   bool coalesced[3] = {
     bfPoint3Dist(v0[0], vt[0]) <= builder->tol,
     bfPoint3Dist(v0[1], vt[1]) <= builder->tol,
@@ -454,6 +455,8 @@ static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
   // TODO: quad collapsed to an edge:
   BF_ASSERT(!(coalesced[0] && coalesced[1]));
 
+  /* Only way this can happens is if the face numerically has zero
+   * diameter... bad. */
   if (coalesced[2]) BF_ASSERT(!coalesced[0] && !coalesced[1]);
 
   /* Compute new cut vertices and append them to `cutVerts`: */
@@ -487,7 +490,7 @@ static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
   BfSize iCutNew[2];
   if (coalesced[2]) {
     BF_ASSERT(!coalesced[0] && !coalesced[1]);
-    BF_ASSERT(!bfPoints3ContainsApprox(builder->verts, v, builder->tol));
+    BF_ASSERT(!bfPoints3ContainsApprox(builder->verts, v1, builder->tol));
     for (BfSize j = 0; j < 2; ++j)
       iCutNew[j] = bfPoints3FindApprox(builder->cutVerts, vt[j], builder->tol);
     BF_ASSERT(BF_SIZE_OK(iCutNew[0]) || BF_SIZE_OK(iCutNew[1]));
@@ -717,9 +720,10 @@ static void addCutFacesAndVerts(NodalDomainBuilder *builder) {
   BfTrimesh const *trimesh = builder->trimesh;
 
   for (BfSize faceIndex = 0; faceIndex < bfTrimeshGetNumFaces(trimesh); ++faceIndex) {
-    if (!shouldCutFace(builder, faceIndex))
-      continue;
-    prepareForAddCutFacesAndVertsIteration(builder, faceIndex);
+    BfSize const *face = bfTrimeshGetFaceConstPtr(builder->trimesh, faceIndex);
+    BfReal phiFace[3]; getPhiFace(builder, faceIndex, phiFace);
+    if (!shouldCutFace(builder, phiFace)) continue;
+    prepareToCutFace(builder, phiFace, face);
     if (builder->numPos == 2 && builder->numNeg == 1)
       addCutFacesAndVerts_case21(builder);
     else if (builder->numPos == 1 && builder->numNeg == 2)
