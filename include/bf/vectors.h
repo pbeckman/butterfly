@@ -55,6 +55,7 @@ struct BfVectors3 {
 
 BfVectors3 *bfVectors3NewEmpty(void);
 BfVectors3 *bfVectors3NewWithCapacity(BfSize capacity);
+BfVectors3 *bfVectors3Copy(BfVectors3 const *vectors);
 void bfVectors3InitEmpty(BfVectors3 *vectors);
 void bfVectors3InitWithCapacity(BfVectors3 *vectors, BfSize capacity);
 void bfVectors3Deinit(BfVectors3 *vectors);

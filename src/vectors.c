@@ -402,6 +402,24 @@ BfVectors3 *bfVectors3NewWithCapacity(BfSize capacity) {
   return vectors;
 }
 
+BfVectors3 *bfVectors3Copy(BfVectors3 const *vectors) {
+  BF_ERROR_BEGIN();
+
+  BfVectors3 *copy = bfVectors3NewWithCapacity(vectors->capacity);
+  HANDLE_ERROR();
+
+  copy->data = bfMemAllocCopy(vectors->data, vectors->size, sizeof(BfVector3));
+  HANDLE_ERROR();
+
+  copy->size = vectors->size;
+
+  BF_ERROR_END() {
+    BF_DIE();
+  }
+
+  return copy;
+}
+
 void bfVectors3InitEmpty(BfVectors3 *vectors) {
   BF_ERROR_BEGIN();
 
