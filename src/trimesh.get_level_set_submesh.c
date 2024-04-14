@@ -342,6 +342,7 @@ static BfSize appendCutVertex(NodalDomainBuilder *builder, BfSize i0, BfSize i1,
   return iCut;
 }
 
+/* "case21" = "2 positive verts and 1 negative vert" */
 static void addCutFacesAndVerts_case21(NodalDomainBuilder *builder) {
   BfPoint3 v0, v[2];
   bfTrimeshGetVertex(builder->trimesh, builder->iNeg[0], v0);
@@ -409,6 +410,7 @@ static void addCutFacesAndVerts_case21(NodalDomainBuilder *builder) {
   appendFace(builder, newFace);
 }
 
+/* "case12" = "1 positive vert and 2 negative verts" */
 static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
   BfPoint3 v0[2], v;
   bfTrimeshGetVertex(builder->trimesh, builder->iNeg[0], v0[0]);
@@ -549,6 +551,7 @@ static BfReal dfds(BfReal s, dfdsContext const *c) {
   return cos1 + cos2;
 }
 
+/* "case111" = "1 positive, 1 negative, and 1 zero vert" */
 static void addCutFacesAndVerts_case111(NodalDomainBuilder *builder) {
   BfTrimesh const *trimesh = builder->trimesh;
 
