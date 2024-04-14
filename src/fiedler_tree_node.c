@@ -264,7 +264,7 @@ static void repairTopologyOfNodalDomains(BfTrimesh const *trimesh, BfRealArray *
  * which is what this function does.
  *
  * Recall that the "Fiedler vector" is a piecewise linear function
- * which is linear over each triangle facet. Consequently, its first
+ * which is linear over each triangular facet. Consequently, its first
  * derivatives are piecewise constant and may be undefined on the
  * vertices and interior edges of the mesh.
  *
