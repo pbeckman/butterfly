@@ -66,6 +66,75 @@ struct BfTrimesh {
   BfReal *faceAreas;
 };
 
+#ifdef BF_EMBREE
+void embreeErrorFunction(void* userPtr, enum RTCError error, char const* str) {
+  (void)userPtr;
+  printf("error %d: %s\n", error, str);
+}
+
+static void initEmbree(BfTrimesh *trimesh) {
+  BF_ERROR_BEGIN();
+
+  trimesh->device = rtcNewDevice(NULL);
+  if (trimesh->device == NULL)
+    RAISE_ERROR(BF_ERROR_EMBREE);
+
+  rtcSetDeviceErrorFunction(trimesh->device, embreeErrorFunction, NULL);
+
+  trimesh->scene = rtcNewScene(trimesh->device);
+  if (trimesh->scene == NULL)
+    RAISE_ERROR(BF_ERROR_EMBREE);
+
+  rtcSetSceneFlags(trimesh->scene, RTC_SCENE_FLAG_FILTER_FUNCTION_IN_ARGUMENTS);
+  rtcSetSceneBuildQuality(trimesh->scene, RTC_BUILD_QUALITY_MEDIUM);
+
+  trimesh->geometry = rtcNewGeometry(trimesh->device, RTC_GEOMETRY_TYPE_TRIANGLE);
+  if (trimesh->geometry == NULL)
+    RAISE_ERROR(BF_ERROR_EMBREE);
+
+  rtcSetGeometryEnableFilterFunctionFromArguments(trimesh->geometry, true);
+
+  trimesh->vertexBuffer = rtcSetNewGeometryBuffer(
+    /* geometry: */ trimesh->geometry,
+    /* type: */ RTC_BUFFER_TYPE_VERTEX,
+    /* slot: */ 0,
+    /* format: */ RTC_FORMAT_FLOAT3,
+    /* byteStride: */ 3*sizeof(float),
+    /* numItems: */ bfPoints3GetSize(trimesh->verts));
+  if (trimesh->vertexBuffer == NULL)
+    RAISE_ERROR(BF_ERROR_EMBREE);
+
+  for (BfSize i = 0; i < bfPoints3GetSize(trimesh->verts); ++i) {
+    BfReal const *v = bfPoints3GetPtrConst(trimesh->verts, i);
+    for (BfSize j = 0; j < 3; ++j) trimesh->vertexBuffer[i][j] = v[j];
+  }
+
+  trimesh->indexBuffer = rtcSetNewGeometryBuffer(
+    /* geometry: */ trimesh->geometry,
+    /* type: */ RTC_BUFFER_TYPE_INDEX,
+    /* slot: */ 0,
+    /* format: */ RTC_FORMAT_UINT3,
+    /* byteStride: */ 3*sizeof(unsigned),
+    /* numItems: */ trimesh->numFaces);
+  if (trimesh->indexBuffer == NULL)
+    RAISE_ERROR(BF_ERROR_EMBREE);
+
+  for (BfSize i = 0; i < trimesh->numFaces; ++i) {
+    BfSize const *f = trimesh->faces[i];
+    for (BfSize j = 0; j < 3; ++j) trimesh->indexBuffer[i][j] = f[j];
+  }
+
+  rtcCommitGeometry(trimesh->geometry);
+  rtcAttachGeometry(trimesh->scene, trimesh->geometry);
+  rtcReleaseGeometry(trimesh->geometry);
+  rtcCommitScene(trimesh->scene);
+
+  BF_ERROR_END() {
+    BF_DIE();
+  }
+}
+#endif
+
 int comparFace(BfSize const *face1, BfSize const *face2, void *arg) {
   (void)arg;
   if (face1[0] == face2[0] && face1[1] == face2[1])
@@ -120,6 +189,20 @@ BfTrimesh *bfTrimeshCopy(BfTrimesh const *trimesh) {
   HANDLE_ERROR();
 
   trimeshCopy->numBoundaryEdges = trimesh->numBoundaryEdges;
+
+#ifdef BF_EMBREE
+  initEmbree(trimeshCopy);
+#endif
+
+  trimeshCopy->faceCentroids = bfMemAllocCopy(trimesh->faceCentroids, trimesh->numFaces, sizeof(BfPoint3));
+
+  if (bfTrimeshHasVertexNormals(trimesh))
+    trimeshCopy->vertexNormals = bfVectors3Copy(trimesh->vertexNormals);
+
+  if (bfTrimeshHasFaceNormals(trimesh))
+    trimeshCopy->faceNormals = bfVectors3Copy(trimesh->faceNormals);
+
+  trimeshCopy->faceAreas = bfMemAllocCopy(trimesh->faceAreas, bfTrimeshGetNumFaces(trimesh), sizeof(BfReal));
 
   BF_ERROR_END() {
     BF_DIE();
@@ -457,75 +540,6 @@ static void initBoundaryEdges(BfTrimesh *trimesh) {
   }
 }
 
-#ifdef BF_EMBREE
-void embreeErrorFunction(void* userPtr, enum RTCError error, char const* str) {
-  (void)userPtr;
-  printf("error %d: %s\n", error, str);
-}
-
-static void initEmbree(BfTrimesh *trimesh) {
-  BF_ERROR_BEGIN();
-
-  trimesh->device = rtcNewDevice(NULL);
-  if (trimesh->device == NULL)
-    RAISE_ERROR(BF_ERROR_EMBREE);
-
-  rtcSetDeviceErrorFunction(trimesh->device, embreeErrorFunction, NULL);
-
-  trimesh->scene = rtcNewScene(trimesh->device);
-  if (trimesh->scene == NULL)
-    RAISE_ERROR(BF_ERROR_EMBREE);
-
-  rtcSetSceneFlags(trimesh->scene, RTC_SCENE_FLAG_FILTER_FUNCTION_IN_ARGUMENTS);
-  rtcSetSceneBuildQuality(trimesh->scene, RTC_BUILD_QUALITY_MEDIUM);
-
-  trimesh->geometry = rtcNewGeometry(trimesh->device, RTC_GEOMETRY_TYPE_TRIANGLE);
-  if (trimesh->geometry == NULL)
-    RAISE_ERROR(BF_ERROR_EMBREE);
-
-  rtcSetGeometryEnableFilterFunctionFromArguments(trimesh->geometry, true);
-
-  trimesh->vertexBuffer = rtcSetNewGeometryBuffer(
-    /* geometry: */ trimesh->geometry,
-    /* type: */ RTC_BUFFER_TYPE_VERTEX,
-    /* slot: */ 0,
-    /* format: */ RTC_FORMAT_FLOAT3,
-    /* byteStride: */ 3*sizeof(float),
-    /* numItems: */ bfPoints3GetSize(trimesh->verts));
-  if (trimesh->vertexBuffer == NULL)
-    RAISE_ERROR(BF_ERROR_EMBREE);
-
-  for (BfSize i = 0; i < bfPoints3GetSize(trimesh->verts); ++i) {
-    BfReal const *v = bfPoints3GetPtrConst(trimesh->verts, i);
-    for (BfSize j = 0; j < 3; ++j) trimesh->vertexBuffer[i][j] = v[j];
-  }
-
-  trimesh->indexBuffer = rtcSetNewGeometryBuffer(
-    /* geometry: */ trimesh->geometry,
-    /* type: */ RTC_BUFFER_TYPE_INDEX,
-    /* slot: */ 0,
-    /* format: */ RTC_FORMAT_UINT3,
-    /* byteStride: */ 3*sizeof(unsigned),
-    /* numItems: */ trimesh->numFaces);
-  if (trimesh->indexBuffer == NULL)
-    RAISE_ERROR(BF_ERROR_EMBREE);
-
-  for (BfSize i = 0; i < trimesh->numFaces; ++i) {
-    BfSize const *f = trimesh->faces[i];
-    for (BfSize j = 0; j < 3; ++j) trimesh->indexBuffer[i][j] = f[j];
-  }
-
-  rtcCommitGeometry(trimesh->geometry);
-  rtcAttachGeometry(trimesh->scene, trimesh->geometry);
-  rtcReleaseGeometry(trimesh->geometry);
-  rtcCommitScene(trimesh->scene);
-
-  BF_ERROR_END() {
-    BF_DIE();
-  }
-}
-#endif
-
 static void initFaceCentroids(BfTrimesh *trimesh) {
   BF_ERROR_BEGIN();
 
@@ -599,6 +613,7 @@ static void initCommon(BfTrimesh *trimesh) {
   initFaceCentroids(trimesh);
   initFaceAreas(trimesh);
 
+  trimesh->vertexNormals = NULL;
   trimesh->faceNormals = NULL;
 
   BF_ERROR_END() {
