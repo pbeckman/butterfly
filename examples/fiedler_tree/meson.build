@@ -7,3 +7,9 @@ executable(
 foreach obj_file : [ 'dragon0.obj', 'dragon1.obj', 'dragon2.obj' ]
   fs.copyfile(obj_file, obj_file)
 endforeach
+
+scripts = ['plot_fiedler_node.py']
+
+foreach script : scripts
+  fs.copyfile(script, scripts)
+endforeach
