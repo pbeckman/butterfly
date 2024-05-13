@@ -27,27 +27,51 @@ static BfReal gamma_(BfReal lambda) {
   }
 }
 
-static BfVec *chebmul(BfCheb const *cheb, BfMat const *S, BfVec *w) {
+static BfVec *applyS(BfMat const *L, BfMat *Mfact, BfVec *w, int lumping) {
+  BfVec *y    = NULL;
+  BfVec *tmp1 = NULL;
+  BfVec *tmp2 = NULL;
+  if (lumping) {
+    // Mfact is inverse diagonal sqrt C^2 = M^{-1}
+    // apply C * L * C
+    tmp1 = bfMatMulVec(Mfact, w);
+    tmp2 = bfMatMulVec(L, tmp1);
+    y    = bfMatMulVec(Mfact, tmp2);
+  } else {
+    // Mfact is cholesky factor C*C^T = M.
+    // we want to apply C^{-1} * L * C^{-T}
+    tmp1 = bfCholCsrRealSolveVec(Mfact, w); // TODO: needs to be C^{-T} not C^{-1} !
+    tmp2 = bfMatMulVec(L, tmp1);
+    y    = bfCholCsrRealSolveVec(Mfact, tmp2);
+  }
+
+  if (tmp1 != NULL) bfVecDelete(&tmp1);
+  if (tmp2 != NULL) bfVecDelete(&tmp2);
+
+  return y;
+}
+
+static BfVec *chebmul(BfCheb const *cheb, BfMat const *L, BfMat *Mfact, BfVec *w, int lumping) {
   BfReal const *c = cheb->c;
 
   BF_ASSERT(cheb->a == 0);
   BfReal lamMax = cheb->b;
 
-  BfSize n = bfMatGetNumRows(S);
+  BfSize n = bfMatGetNumRows(L);
   BfVec *x = bfVecRealToVec(bfVecRealNewWithValue(n, 0));
 
   BfVec *y2 = bfVecCopy(w);
 
   bfVecDaxpy(x, c[0], y2);
 
-  BfVec *y1 = bfMatMulVec(S, w);
+  BfVec *y1 = applyS(L, Mfact, w, lumping);
+  
   bfVecDscal(y1, 2/lamMax);
   bfVecDaxpy(y1, -1, w);
-
   bfVecDaxpy(x, c[1], y1);
 
   for (BfSize k = 2; k < cheb->order; ++k) {
-    BfVec *y = bfMatMulVec(S, y1);
+    BfVec *y = applyS(L, Mfact, y1, lumping);
     bfVecDscal(y, 4/lamMax);
     bfVecDaxpy(y, -2, y1);
     bfVecDaxpy(y, -1, y2);
@@ -65,61 +89,76 @@ static BfVec *chebmul(BfCheb const *cheb, BfMat const *S, BfVec *w) {
   return x;
 }
 
-static BfVec *sample_z(BfCheb const *cheb, BfMat const *S, BfMat const *MLumpSqrtInv) {
-  BfSize n = bfMatGetNumRows(S);
+static BfVec *sample_z(BfCheb const *cheb, BfMat const *L, BfMat const *Mfact, int lumping) {
+  BfSize n = bfMatGetNumRows(L);
   BfVec *w = bfVecRealToVec(bfVecRealNewRandn(n));
-  BfVec *x = chebmul(cheb, S, w);
-  BfVec *z = bfMatMulVec(MLumpSqrtInv, x);
+  BfVec *x = chebmul(cheb, L, Mfact, w, lumping);
+  BfVec *z = NULL; 
+  if (lumping) {
+    z = bfMatMulVec(Mfact, x);
+  } else {
+    z = bfCholCsrRealSolveVec(Mfact, x); // TODO: needs to be C^{-T} not C^{-1} !
+  }
+  
   bfVecDelete(&w);
   bfVecDelete(&x);
   return z;
 }
 
-static BfVec *cov_matvec(BfVec *v, BfCheb const *cheb, BfMat const *S, BfMat const *MLumpSqrtInv) {
-  BfVec *tmp = bfMatMulVec(MLumpSqrtInv, v);
-  BfVec *tmp1 = chebmul(cheb, S, tmp);
+static BfVec *cov_matvec(BfVec *v, BfCheb const *cheb, BfMat const *L, BfMat const *Mfact, int lumping) {
+  BfVec *tmp = NULL;
+  if (lumping) {
+    tmp = bfMatMulVec(Mfact, v);
+  } else {
+    tmp = bfCholCsrRealSolveVec(Mfact, v);
+  }
+  BfVec *tmp1 = chebmul(cheb, L, Mfact, tmp, lumping);
   bfVecDelete(&tmp);
-  tmp = chebmul(cheb, S, tmp1);
+  tmp = chebmul(cheb, L, Mfact, tmp1, lumping);
   bfVecDelete(&tmp1);
-  tmp1 = bfMatMulVec(MLumpSqrtInv, tmp);
+  tmp1 = NULL;
+  if (lumping) {
+    tmp1 = bfMatMulVec(Mfact, tmp);
+  } else {
+    tmp1 = bfCholCsrRealSolveVec(Mfact, tmp); // TODO: needs to be C^{-T} not C^{-1} !
+  }
   bfVecDelete(&tmp);
   return tmp1;
 }
 
-static void getS(BfMat *L, BfMat *M, BfMat **SHandle, BfMat **MLumpSqrtInvHandle) {
-  BfSize n = bfMatGetNumRows(L);
+static void get_factM(BfMat *M, BfMat **MfactHandle, int lumping) {
+  if (lumping) {
+    BfSize n = bfMatGetNumRows(M);
 
-  BfMatCsrReal const *MCsr = bfMatConstToMatCsrRealConst(M);
+    BfMatCsrReal const *MCsr = bfMatConstToMatCsrRealConst(M);
 
-  BfMatDiagReal *MLumpSqrtInv = bfMatDiagRealNew();
-  bfMatDiagRealInit(MLumpSqrtInv, n, n);
+    BfMatDiagReal *MLumpSqrtInv = bfMatDiagRealNew();
+    bfMatDiagRealInit(MLumpSqrtInv, n, n);
 
-  for (BfSize i = 0; i < n; ++i) {
-    MLumpSqrtInv->data[i] = 0;
-    for (BfSize j = MCsr->rowptr[i]; j < MCsr->rowptr[i + 1]; ++j)
-      MLumpSqrtInv->data[i] += MCsr->data[j];
-    MLumpSqrtInv->data[i] = 1/sqrt(MLumpSqrtInv->data[i]);
+    for (BfSize i = 0; i < n; ++i) {
+      MLumpSqrtInv->data[i] = 0;
+      for (BfSize j = MCsr->rowptr[i]; j < MCsr->rowptr[i + 1]; ++j)
+        MLumpSqrtInv->data[i] += MCsr->data[j];
+      MLumpSqrtInv->data[i] = 1/sqrt(MLumpSqrtInv->data[i]);
+    }
+
+    *MfactHandle = bfMatDiagRealToMat(MLumpSqrtInv);
+  } else {
+    BfCholCsrReal *MSqrt = bfCholCsrRealNew();
+    bfCholCsrRealInit(MSqrt, M);
+
+    *MfactHandle = MSqrt;
   }
-
-  BfMatProduct *S = bfMatProductNew();
-  bfMatProductInit(S);
-
-  // TODO: should add a policy argument to PostMultiply...
-  bfMatProductPostMultiply(S, bfMatGetView(bfMatDiagRealToMat(MLumpSqrtInv)));
-  bfMatProductPostMultiply(S, bfMatGetView(L));
-  bfMatProductPostMultiply(S, bfMatGetView(bfMatDiagRealToMat(MLumpSqrtInv)));
-
-  *SHandle = bfMatProductToMat(S);
-  *MLumpSqrtInvHandle = bfMatDiagRealToMat(MLumpSqrtInv);
 }
 
 int main(int argc, char const *argv[]) {
   if (argc < 5) {
-    printf("usage: %s mesh.obj kappa nu num_samples [p] \n", argv[0]);
+    printf("usage: %s mesh.obj kappa nu num_samples [p] [lumping] \n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
   BfSize p = argc > 5 ? strtod(argv[5], NULL) : 128;
+  int lumping = argc > 6 ? atoi(argv[6]) : 0;
   kappa = atof(argv[2]);
   nu = atof(argv[3]);
   BfSize numSamples = atoi(argv[4]);
@@ -175,15 +214,15 @@ int main(int argc, char const *argv[]) {
   // }
   // fclose(fp);
 
-  /** Get S = sqrt(M)^-T*L*sqrt(M)^-1 (although the "T" does nothing
-   ** here since M is lumped hence diagonal). */
+  /** Get S = sqrt(M)^-T*L*sqrt(M)^-1 */
 
-  BfMat *S = NULL, *MLumpSqrtInv = NULL;
-  getS(L, M, &S, &MLumpSqrtInv);
+  BfMat *Mfact = NULL;
+  get_factM(M, &Mfact, lumping);
 
   /** Sample z once and write it out to disk for plotting. */
 
-  BfVec *z = sample_z(&gammaCheb, S, MLumpSqrtInv);
+  BfVec *z = sample_z(&gammaCheb, L, Mfact, lumping);
+  
   sprintf(filename, "z_cheb_p%lu_kappa%.1e_nu%.1e.bin", p, kappa, nu);
   bfVecSave(z, filename);
   bfVecDelete(&z);
@@ -193,7 +232,7 @@ int main(int argc, char const *argv[]) {
   printf("computing %i samples\n", numSamples);
   bfToc();
   for (BfSize _ = 0; _ < numSamples; ++_) {
-    z = sample_z(&gammaCheb, S, MLumpSqrtInv);
+    z = sample_z(&gammaCheb, L, Mfact, lumping);
     bfVecDelete(&z);
   }
   double sampling_time = bfToc();
@@ -212,7 +251,7 @@ int main(int argc, char const *argv[]) {
    ** on the mesh. */
 
   BfVec *e = bfVecRealToVec(bfVecRealNewStdBasis(numVerts, 0));
-  BfVec *c = cov_matvec(e, &gammaCheb, S, MLumpSqrtInv);
+  BfVec *c = cov_matvec(e, &gammaCheb, L, Mfact, lumping);
   sprintf(filename, "c_cheb_p%lu_kappa%.1e_nu%.1e.bin", p, kappa, nu);
   bfVecSave(c, filename);
 
@@ -231,7 +270,7 @@ int main(int argc, char const *argv[]) {
       bfMatDenseRealSetCol(randvecs, j, x);
 
       // apply covariance matrix
-      BfVec *tmp1 = cov_matvec(x, &gammaCheb, S, MLumpSqrtInv);
+      BfVec *tmp1 = cov_matvec(x, &gammaCheb, L, Mfact, lumping);
 
       // Set column of results:
       bfMatDenseRealSetCol(matvecs, j, tmp1);
@@ -241,15 +280,13 @@ int main(int argc, char const *argv[]) {
       bfVecDelete(&tmp1);
   }
 
-<<<<<<< HEAD
   sprintf(filename, "randvecs_cheb_p%i_kappa%.1e_nu%.1e.bin", p, kappa, nu);
   bfMatDenseRealSave(randvecs, filename);
 
   sprintf(filename, "matvecs_cheb_p%i_kappa%.1e_nu%.1e.bin", p, kappa, nu);
-=======
-  sprintf(filename, "matvecs_cheb_p%lu_kappa%.1e_nu%.1e.bin", p, kappa, nu);
->>>>>>> 8daa4431879ca26537b151174f3324f83f0cb9ce
   bfMatDenseRealSave(matvecs, filename);
+
+  printf("cleaning up\n");
 
   /** Clean up: */
 
@@ -258,6 +295,5 @@ int main(int argc, char const *argv[]) {
   bfMatDelete(&M);
   bfChebDeinit(&gammaCheb);
   bfVecDelete(&c);
-  bfMatDelete(&S);
-  bfMatDelete(&MLumpSqrtInv);
+  bfMatDelete(&Mfact);
 }
