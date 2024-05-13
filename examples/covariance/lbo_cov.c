@@ -61,7 +61,7 @@ static BfVec *cov_matvec(BfVec *v, BfMat const *Phi, BfMat const *GammaLam, BfPe
 
 int main(int argc, char const *argv[]) {
   if (argc < 5) {
-    printf("usage: %s mesh.obj kappa nu num_samples [tol] [fraction] [rowTreeOffset] [freqTreeDepth]\n", argv[0]);
+    printf("usage: %s mesh.obj kappa nu num_samples [tol] [lumping] [fraction] [rowTreeOffset] [freqTreeDepth]\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
@@ -100,6 +100,7 @@ int main(int argc, char const *argv[]) {
     freqTreeDepth = rowTreeMaxDepth - 3;
 
   BfMat *L, *M;
+  bfToc();
   bfTrimeshGetLboFemDiscretization(trimesh, &L, &M);
   printf("set up FEM discretization [%0.1fs]\n", bfToc());
 
@@ -139,7 +140,7 @@ int main(int argc, char const *argv[]) {
       bfLboFeedFacStreamerNextEigenband(facStreamer, freqs, L, M);
     if (freqs->size >= numEigs) break;
 
-    BfReal t0Loop = bfToc();
+    bfToc();
 
     // Don't try to extrapolate if we don't have enough frequencies:
     if (freqs->size <= nfit) continue;
@@ -174,7 +175,8 @@ int main(int argc, char const *argv[]) {
     }
     err_est = sqrt(numer)/sqrt(denom);
 
-    BfReal loopTime = bfToc() - t0Loop;
+    BfReal loopTime = bfToc();
+    
     eigTime += result.eigenbandTime;
     facTime += loopTime + result.totalTime - result.eigenbandTime;
 
@@ -226,20 +228,14 @@ int main(int argc, char const *argv[]) {
   printf("drew %lu samples [%0.1fs]\n", numSamples, sampling_time);
 
   // save factorization time and memory sizes to file
-  char line[100];
+  char line[1000];
   FILE *fptr;
   sprintf(filename, "performance_kappa%.1e_nu%.1e.txt", kappa, nu);
   sprintf(
     line,
-<<<<<<< HEAD
-    "%.1e\t%i\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n", 
-    tol, freqs->size, precomp_time, sampling_time/numSamples,
-    numBytesCompressed/pow(1024, 2), 
-=======
-    "%.1e\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n",
-    tol, facTime, sampling_time/numSamples,
+    "%.1e\t%i\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n",
+    tol, freqs->size, eigTime, facTime, sampling_time/numSamples,
     numBytesCompressed/pow(1024, 2),
->>>>>>> 8daa4431879ca26537b151174f3324f83f0cb9ce
     numBytesUncompressed/pow(1024, 2),
     numBytesUntruncated/pow(1024, 2)
     );
@@ -247,9 +243,10 @@ int main(int argc, char const *argv[]) {
   fprintf(fptr, line);
   fclose(fptr);
 
-  /** Evaluate the covariance function with respect to a fixed point
+  /** Evaluate the marginal covariance function with respect to a fixed point
    ** on the mesh. */
 
+  printf("computing marginal covariance\n");
   BfVec *e = bfVecRealToVec(bfVecRealNewStdBasis(numVerts, 0));
   BfVec *c = cov_matvec(e, Phi, GammaLam, rowPerm, revRowPerm);
   sprintf(filename, "c_lbo_tol%.0e_kappa%.1e_nu%.1e.bin", tol, kappa, nu);

@@ -36,7 +36,7 @@ cc = meson.get_compiler('c')
 
 fortran_dep = cc.find_library('gfortran', required : true)
 cholmod_dep = cc.find_library('cholmod', required : true)
-m_dep = meson.get_compiler('c').find_library('m', required : false)
+m_dep = cc.find_library('m', required : false)
 umfpack_dep = cc.find_library('umfpack', required : true)
 arpack_dep = dependency('arpack', required : true)
 gsl_dep = dependency('gsl', required : true)
