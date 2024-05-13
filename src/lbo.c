@@ -69,10 +69,9 @@ static BfInterval getBracketFromNode(BfTreeNode const *treeNode) {
 
 BfLboFeedResult bfLboFeedFacStreamerNextEigenband(BfFacStreamer *facStreamer, BfPoints1 *freqs, BfMat const *L, BfMat const *M) {
   BF_ERROR_BEGIN();
+  bfToc();
 
   BfLboFeedResult result;
-
-  BfReal t0Total = bfToc();
 
   BfMat *Phi = NULL;
   BfVecReal *Lam = NULL;
@@ -97,13 +96,12 @@ BfLboFeedResult bfLboFeedFacStreamerNextEigenband(BfFacStreamer *facStreamer, Bf
   HANDLE_ERROR();
 
   /* Compute the next eigenband using Lanczos */
-  BfReal t0Eigenband = bfToc();
+  BfReal preEigTime = bfToc();
   bfGetEigenband(L, M, &bracket, BF_EIGENBAND_METHOD_COVERING, &Phi, &Lam);
-  result.eigenbandTime = bfToc() - t0Eigenband;
+  result.eigenbandTime = bfToc();
   HANDLE_ERROR();
 
   printf("feed: bracket = %c%1.2f, %1.2f%c, num. eigs = %lu\n", bracket.closed[0] ? '[' : '(', bracket.endpoint[0], bracket.endpoint[1], bracket.closed[1] ? ']' : ')', Lam->super.size);
-
 
   /* Permute the rows of Phi, putting them into row tree order */
   bfMatPermuteRows(Phi, bfFacStreamerGetRowTreeReversePerm(facStreamer));
@@ -144,7 +142,8 @@ BfLboFeedResult bfLboFeedFacStreamerNextEigenband(BfFacStreamer *facStreamer, Bf
   bfMatDelete(&Phi);
   bfVecRealDeinitAndDealloc(&Lam);
 
-  result.totalTime = bfToc() - t0Total;
+  BfReal postEigTime = bfToc();
+  result.totalTime = preEigTime + result.eigenbandTime + postEigTime;
 
   return result;
 }
