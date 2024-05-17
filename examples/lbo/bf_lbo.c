@@ -26,6 +26,7 @@ typedef struct {
   BfLogLevel logLevel;
 
   char const *objPath;
+  char const *matPath;
 
   bool useOctree;
   bool useFiedlerTree;
@@ -48,6 +49,7 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
   struct arg_str *logLevel;
 
   struct arg_str *objPath;
+  struct arg_str *matPath;
 
   struct arg_lit *useOctree;
   struct arg_lit *useFiedlerTree;
@@ -69,6 +71,7 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
     logLevel = arg_str0(NULL, "logLevel", NULL, NULL),
 
     objPath = arg_str0(NULL, "objPath", NULL, NULL),
+    matPath = arg_str0(NULL, "matPath", NULL, NULL),
 
     useOctree = arg_lit0(NULL, "useOctree", NULL),
     useFiedlerTree = arg_lit0(NULL, "useFiedlerTree", NULL),
@@ -147,6 +150,7 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
   }
 
   opts->objPath = *objPath->sval;
+  opts->matPath  = *matPath->sval;
 
   opts->useOctree = useOctree->count > 0;
   opts->useFiedlerTree = useFiedlerTree->count > 0;
@@ -198,57 +202,65 @@ int main(int argc, char *argv[]) {
   if (!parseArgs(&opts, argc, argv))
     return EXIT_FAILURE;
 
-  bfSeed(opts.seed);
-  bfSetLogLevel(opts.logLevel);
-
-  BF_ERROR_BEGIN() {}
-
-  BfTrimesh *trimesh = bfTrimeshNewFromObjFile(opts.objPath);
-  HANDLE_ERROR();
-
-  BfSize numVerts = bfTrimeshGetNumVerts(trimesh);
-  printf("loaded triangle mesh from %s (%lu verts)\n", opts.objPath, numVerts);
-
-  BfTree *rowTree = NULL;
-
   if (!(opts.useOctree ^ opts.useFiedlerTree)) {
     printf("error: pass exactly one of --useOctree or --useFiedlerTree\n");
     return EXIT_SUCCESS;
   }
 
-  if (opts.useOctree) {
-    BfOctree *octree = bfOctreeNew();
+  bfSeed(opts.seed);
+  bfSetLogLevel(opts.logLevel);
+
+  BF_ERROR_BEGIN() {}
+
+  BfTrimesh *trimesh = NULL;
+  BfSize numVerts = 0;
+  BfTree *rowTree = NULL;
+  BfMat *L = NULL, *M = NULL;
+  if (!(strcmp(opts.objPath, "") ^ strcmp(opts.matPath, ""))) {
+    printf("error: pass exactly one of --objPath or --matPath\n");
+    return EXIT_SUCCESS;
+  } else if (strcmp(opts.objPath, "")) {
+    trimesh = bfTrimeshNewFromObjFile(opts.objPath);
     HANDLE_ERROR();
 
-    bfOctreeInit(octree, bfTrimeshGetVertsConst(trimesh), NULL, /* maxLeafSize: */ 1);
+    numVerts = bfTrimeshGetNumVerts(trimesh);
+    printf("loaded triangle mesh from %s (%lu verts)\n", opts.objPath, numVerts);
+
+    /* Compute a finite element discretization of the Laplace-Beltrami
+    * operator on `trimesh` using linear finite elements. The stiffness
+    * matrix is returned in L and the mass matrix is returned in M. The
+    * mass matrix isn't diagonal but this isn't too important. */
+    bfTrimeshGetLboFemDiscretization(trimesh, &L, &M);
     HANDLE_ERROR();
 
-    char const *octreeBoxesPath = "octree_boxes.txt";
-    bfOctreeSaveBoxesToTextFile(octree, octreeBoxesPath);
-    HANDLE_ERROR();
-    printf("wrote octree cells to %s\n", octreeBoxesPath);
+    if (opts.useOctree) {
+      BfOctree *octree = bfOctreeNew();
+      HANDLE_ERROR();
 
-    rowTree = bfOctreeToTree(octree);
-  }
+      bfOctreeInit(octree, bfTrimeshGetVertsConst(trimesh), NULL, /* maxLeafSize: */ 1);
+      HANDLE_ERROR();
 
-  if (opts.useFiedlerTree) {
-    BfFiedlerTree *fiedlerTree = bfFiedlerTreeNewFromTrimesh(
-      trimesh, /* tol: */ 1e-15, /* keepNodeTrimeshes: */ false);
-    printf("built Fiedler tree\n");
+      char const *octreeBoxesPath = "octree_boxes.txt";
+      bfOctreeSaveBoxesToTextFile(octree, octreeBoxesPath);
+      HANDLE_ERROR();
+      printf("wrote octree cells to %s\n", octreeBoxesPath);
 
-    rowTree = bfFiedlerTreeToTree(fiedlerTree);
+      rowTree = bfOctreeToTree(octree);
+    }
+
+    if (opts.useFiedlerTree) {
+      BfFiedlerTree *fiedlerTree = bfFiedlerTreeNewFromTrimesh(
+        trimesh, /* tol: */ 1e-15, /* keepNodeTrimeshes: */ false);
+      printf("built Fiedler tree\n");
+
+      rowTree = bfFiedlerTreeToTree(fiedlerTree);
+    }
+  } else {
+    /* TODO: Load mass matrix M and stiffness matrix L from binaries */
   }
 
   BfSize rowTreeDepth = bfTreeGetMaxDepth(rowTree);
   printf("row tree has depth %lu\n", rowTreeDepth);
-
-  /* Compute a finite element discretization of the Laplace-Beltrami
-   * operator on `trimesh` using linear finite elements. The stiffness
-   * matrix is returned in L and the mass matrix is returned in M. The
-   * mass matrix isn't diagonal but this isn't too important. */
-  BfMat *L = NULL, *M = NULL;
-  bfTrimeshGetLboFemDiscretization(trimesh, &L, &M);
-  HANDLE_ERROR();
 
   /* Find the largest eigenvalue. We need this to determine the
    * interval on which we'll build the frequency tree. */
@@ -306,7 +318,7 @@ int main(int argc, char *argv[]) {
     .colTreeInitDepth = freqTreeDepth, // TODO: this is unused!
     .tol = opts.tol,
     .minNumRows = 20,
-    .minNumCols = 1,
+    .minNumCols = 20,
     .compareRelativeErrors = opts.compareRelativeErrors,
   };
 
@@ -324,9 +336,26 @@ int main(int argc, char *argv[]) {
 
   bfToc();
 
+  BfFacSpan *facSpan = NULL;
+  BfMat *mat = NULL;
+
   BfSize numStreamed = 0;
+  BfReal numBytesCompressed = 0;
+  BfReal numBytesUncompressed = 0;
   while (!bfFacStreamerIsDone(facStreamer)) {
     bfLboFeedFacStreamerNextEigenband(facStreamer, freqs, L, M);
+
+    facSpan = bfFacStreamerGetFacSpan(facStreamer);
+    mat = bfFacSpanGetMat(facSpan, BF_POLICY_VIEW);
+    numBytesCompressed = bfMatNumBytes(mat);
+    bfMatDelete(&mat);
+    bfFacSpanDelete(&facSpan);
+    numBytesUncompressed = sizeof(BfReal)*numVerts*freqs->size;
+    printf("- streamed %lu eigs (%1.1f%% of total)\n", freqs->size, (100.0*freqs->size)/numVerts);
+    printf("- compressed size:   %.1f MB\n", numBytesCompressed/pow(1024, 2));
+    printf("- uncompressed size: %.1f MB\n", numBytesUncompressed/pow(1024, 2));
+    printf("- compression rate:  %.1f\n", numBytesUncompressed/numBytesCompressed);
+
     HANDLE_ERROR();
 
     if (++numStreamed >= opts.numLeafNodes) break;
@@ -334,18 +363,14 @@ int main(int argc, char *argv[]) {
 
   printf("finished streaming butterfly factorization [%.2fs]\n", bfToc());
 
-  BfFacSpan *facSpan = bfFacStreamerGetFacSpan(facStreamer);
-  BfMat *mat = bfFacSpanGetMat(facSpan, BF_POLICY_VIEW);
+  // BfSize numEigs = bfMatGetNumCols(mat);
+  // printf("- streamed %lu eigs (%1.1f%% of total)\n", numEigs, (100.0*numEigs)/numVerts);
 
-  BfSize numEigs = bfMatGetNumCols(mat);
-  printf("- streamed %lu eigs (%1.1f%% of total)\n", numEigs, (100.0*numEigs)/numVerts);
-
-  BfReal numBytesUncompressed = sizeof(BfReal)*numVerts*numEigs;
-  BfReal numBytesCompressed = bfMatNumBytes(mat);
-
-  printf("- compressed size: %.1f MB\n", numBytesCompressed/pow(1024, 2));
-  printf("- uncompressed size: %.1f MB\n", numBytesUncompressed/pow(1024, 2));
-  printf("- compression rate: %.1f\n", numBytesUncompressed/numBytesCompressed);
+  // numBytesUncompressed = sizeof(BfReal)*numVerts*numEigs;
+  // numBytesCompressed = bfMatNumBytes(mat);
+  // printf("- compressed size:   %.1f MB\n", numBytesCompressed/pow(1024, 2));
+  // printf("- uncompressed size: %.1f MB\n", numBytesUncompressed/pow(1024, 2));
+  // printf("- compression rate:  %.1f\n", numBytesUncompressed/numBytesCompressed);
 
   BF_ERROR_END() {}
 
