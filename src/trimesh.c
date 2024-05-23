@@ -1447,7 +1447,7 @@ bool bfTrimeshHasDuplicateFaces(BfTrimesh const *trimesh) {
 }
 
 BfSize bfTrimeshGetNumVertexNeighbors(BfTrimesh const *trimesh, BfSize i) {
-  if (i > bfTrimeshGetNumVerts(trimesh))
+  if (i >= bfTrimeshGetNumVerts(trimesh))
     bfSetError(BF_ERROR_INVALID_ARGUMENTS);
   return trimesh->vvOffset[i + 1] - trimesh->vvOffset[i];
 }
@@ -1455,7 +1455,7 @@ BfSize bfTrimeshGetNumVertexNeighbors(BfTrimesh const *trimesh, BfSize i) {
 BfSize bfTrimeshGetVertexNeighbor(BfTrimesh const *trimesh, BfSize i, BfSize j) {
   if (i >= bfTrimeshGetNumVerts(trimesh))
     bfSetError(BF_ERROR_INVALID_ARGUMENTS);
-  if (j > bfTrimeshGetNumVertexNeighbors(trimesh, i))
+  if (j >= bfTrimeshGetNumVertexNeighbors(trimesh, i))
     bfSetError(BF_ERROR_INVALID_ARGUMENTS);
   return trimesh->vv[trimesh->vvOffset[i] + j];
 }

@@ -246,8 +246,15 @@ static void getPhiFace(NodalDomainBuilder const *builder,
 }
 
 static bool shouldCutFace(NodalDomainBuilder const *builder, BfReal const phiFace[3]) {
-  /* We've already established that there should be no nodal faces: */
-  if (phiFace[0] == 0 && phiFace[1] == 0 && phiFace[2] == 0) BF_DIE();
+  if (isnan(phiFace[0]) || isnan(phiFace[1]) || isnan(phiFace[2])) {
+    for (BfSize i = 0; i < 3; ++i)
+      if (!isnan(phiFace[i]))
+        BF_ASSERT(fabs(phiFace[i]) <= BF_EPS);
+    return false;
+  }
+
+  if (phiFace[0] == 0 && phiFace[1] == 0 && phiFace[2] == 0)
+    return false;
 
   /* Skip faces that aren't cut by the zero level: */
   if ((phiFace[0] <= 0 && phiFace[1] <= 0 && phiFace[2] <= 0)
@@ -416,6 +423,9 @@ static void addCutFacesAndVerts_case21(NodalDomainBuilder *builder) {
 
 /* "case12" = "1 positive vert and 2 negative verts" */
 static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
+  static int call = 0;
+  ++call;
+
   BfPoint3 v0[2], v1;
   bfTrimeshGetVertex(builder->trimesh, builder->iNeg[0], v0[0]);
   bfTrimeshGetVertex(builder->trimesh, builder->iNeg[1], v0[1]);
@@ -527,6 +537,12 @@ static void addCutFacesAndVerts_case12(NodalDomainBuilder *builder) {
     appendFace(builder, newFaces[1]);
   }
 
+  /* The First cut vertex has coalesced: */
+  else if (coalesced[0] && !coalesced[1] && !coalesced[2]) {
+    BfSize3 newFace = {i0New[0], i0New[1], iCutNew[1]};
+    appendFace(builder, newFace);
+  }
+
   /* The second cut vertex has coalesced: */
   else if (!coalesced[0] && coalesced[1] && !coalesced[2]) {
     BfSize3 newFace = {i0New[0], i0New[1], iCutNew[0]};
@@ -549,22 +565,6 @@ typedef struct {
   BfReal const *vZero;
   BfReal const *vt;
 } dfdsContext;
-
-static BfReal dfds(BfReal s, dfdsContext const *c) {
-  BfPoint3 vs;
-  bfPoint3GetPointOnRay(c->vInt, c->dv, s, vs);
-
-  BfVector3 v0_vs;
-  bfPoint3Sub(vs, c->vZero, v0_vs);
-
-  BfVector3 vt_vs;
-  bfPoint3Sub(vs, c->vt, vt_vs);
-
-  BfReal cos1 = bfVector3Dot(c->dv, v0_vs)/bfVector3Norm(v0_vs);
-  BfReal cos2 = bfVector3Dot(c->dv, vt_vs)/bfVector3Norm(vt_vs);
-
-  return cos1 + cos2;
-}
 
 /* "case111" = "1 positive, 1 negative, and 1 zero vert" */
 static void addCutFacesAndVerts_case111(NodalDomainBuilder *builder) {
