@@ -15,3 +15,6 @@ executable(
   dependencies : [hypre_dep, metis_dep, mfem_dep, butterfly_dep, mpi_dep],
   include_directories : [hypre_root + '/include', mfem_root]
 )
+
+fs.copyfile('make_sphere_data.sh', 'make_sphere_data.sh')
+fs.copyfile('make_plots.py', 'make_plots_py')
