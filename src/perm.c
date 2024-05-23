@@ -247,3 +247,19 @@ void bfPermReverse(BfPerm *perm) {
 
   bfMemFree(tmp);
 }
+
+void bfPermSave(BfPerm const *perm, char const *path) {
+  BF_ERROR_BEGIN();
+
+  FILE *fp = fopen(path, "w");
+  if (fp == NULL)
+    RAISE_ERROR(BF_ERROR_FILE_ERROR);
+
+  fwrite(perm->index, sizeof(BfSize), perm->size, fp);
+
+  fclose(fp);
+
+  BF_ERROR_END() {
+    BF_DIE();
+  }
+}

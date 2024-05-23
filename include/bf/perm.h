@@ -26,3 +26,4 @@ BfSize bfPermGetSize(BfPerm const *perm);
 BfSize bfPermGetNumBytes(BfPerm const *perm);
 BfSize bfPermGetIndex(BfPerm const *perm, BfSize i);
 void bfPermReverse(BfPerm *perm);
+void bfPermSave(BfPerm const *perm, char const *path);
