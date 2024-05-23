@@ -46,6 +46,8 @@ elseif method == "exact"
 
     Phi = reshape(reinterpret(Float64, read("Phi.bin")), n, :)
     Lam = reinterpret(Float64, read("Lam.bin"))
+else
+    error("Method must be lbo, cheb, or exact. You gave: $method.")
 end
 
 ## plot sample and marginal covariance

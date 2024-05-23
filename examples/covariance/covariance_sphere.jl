@@ -3,7 +3,7 @@ import MeshIO: decompose, Point3
 
 include("sphere_cov.jl")
 
-mesh_file = ARGS[1]
+node_file = ARGS[1]
 k  = parse(Float64, ARGS[2])
 nu = parse(Float64, ARGS[3])
 P_file   = ARGS[4]
@@ -12,7 +12,7 @@ tol_file = ARGS[5]
 Ps   = Int64.(readdlm(P_file)[1:end-1])
 tols = readdlm(tol_file)[1:end-1]
 
-mesh = load(mesh_file)
+nodes = reinterpret(Float64, read(node_file))
 
 # from the mesh, compute geodesic distances at which to evaluate the covariance 
 vertices = decompose(Point3{Float64}, mesh)

@@ -1,7 +1,7 @@
 using LegendrePolynomials, Printf
 import OffsetArrays: no_offset_view
 
-# adaptively compute analytical covariances from power spectral density
+# adaptively compute analytical covariances from spectral density
 function sphere_cov(g, t; rtol=eps(), atol=0, blksz=100, maxterms=10000, verb=false)
     cov  = 0.0
     l0   = 0

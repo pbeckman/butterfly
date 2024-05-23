@@ -5,10 +5,13 @@ if get_option('mfem').enabled()
   subdir('lbo_MFEM')
 endif
 subdir('multiple_scattering')
-subdir('radiosity')
 subdir('simple')
 subdir('tree_evaluator')
 subdir('covariance')
+
+if get_option('embree').enabled()
+  subdir('radiosity')
+endif
 
 # Extra files that should be copied over, such as common files,
 # resources, etc.

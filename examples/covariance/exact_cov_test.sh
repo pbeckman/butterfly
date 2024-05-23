@@ -36,8 +36,8 @@ fi
 for params in $PARAMS
 do 
     IFS="," read KAPPA NU <<< "$params"
-    julia --project=. plot_sample.jl         $MESH $KAPPA $NU exact
     julia --project=. plot_exact_cov_test.jl $MESH $KAPPA $NU
+    julia --project=. plot_sample.jl         $MESH $KAPPA $NU exact
 done
 
 # move generated files to output folder
