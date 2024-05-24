@@ -163,7 +163,8 @@ int main(int argc, char *argv[])
    m->Assemble();
    m->Finalize();
 
-   // TODO: upcast indptr and indices to BfSize so they can be read in
+   // TODO: upcast indptr and indices to BfSize so we can read them into bf_lbo
+   // TODO: GetI() includes index length(I), so it needs to be truncated by one
    const SparseMatrix& A = a->SpMat();
    const int *A_indptr = A.GetI();
    const int *A_indices = A.GetJ();
