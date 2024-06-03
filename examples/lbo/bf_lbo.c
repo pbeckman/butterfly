@@ -9,6 +9,7 @@
 #include <bf/lbo.h>
 #include <bf/linalg.h>
 #include <bf/logging.h>
+#include <bf/mat_csr_real.h>
 #include <bf/octree.h>
 #include <bf/rand.h>
 #include <bf/util.h>
@@ -137,13 +138,13 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
     printf("Exactly one of --objPath or --matPath should be set\n");
     success = false;
     goto cleanup;
-  } 
+  }
 
   if (strcmp(*matPath->sval, "") && useFiedlerTree->count) {
     printf("Argument --useFiedlerTree is only implemented with --objPath, not --matPath\n");
     success = false;
     goto cleanup;
-  } 
+  }
 
   /* If neither --freqTreeDepth nor --freqTreeOffset are set, then we
    * use a value of freqTreeOffset equal to 2 by default: */
@@ -243,7 +244,7 @@ int main(int argc, char *argv[]) {
     bfTrimeshGetLboFemDiscretization(trimesh, &L, &M);
     HANDLE_ERROR();
 
-    verts = bfTrimeshGetVertsConst(trimesh);
+    verts = bfTrimeshGetVerts(trimesh);
 
     numVerts = bfTrimeshGetNumVerts(trimesh);
     printf("using linear FEM on triangle mesh from obj file %s (%lu verts)\n", opts.objPath, numVerts);

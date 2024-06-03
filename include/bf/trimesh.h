@@ -17,6 +17,7 @@ void bfTrimeshDealloc(BfTrimesh **trimesh);
 void bfTrimeshDeinitAndDealloc(BfTrimesh **trimesh);
 BfSize bfTrimeshGetNumVerts(BfTrimesh const *trimesh);
 BfSize bfTrimeshGetNumFaces(BfTrimesh const *trimesh);
+BfPoints3 *bfTrimeshGetVerts(BfTrimesh *trimesh);
 BfPoints3 const *bfTrimeshGetVertsConst(BfTrimesh const *trimesh);
 void bfTrimeshGetVertex(BfTrimesh const *trimesh, BfSize i, BfPoint3 x);
 BfReal const *bfTrimeshGetVertPtrConst(BfTrimesh const *trimesh, BfSize i);

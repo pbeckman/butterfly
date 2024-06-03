@@ -1,5 +1,6 @@
 #include <bf/assert.h>
 #include <bf/cheb.h>
+#include <bf/chol_csr_real.h>
 #include <bf/const.h>
 #include <bf/linalg.h>
 #include <bf/mat_csr_real.h>
@@ -27,7 +28,7 @@ static BfReal gamma_(BfReal lambda) {
   }
 }
 
-static BfVec *applyS(BfMat const *L, BfMat *Mfact, BfVec *w, int lumping) {
+static BfVec *applyS(BfMat const *L, BfMat const *Mfact, BfVec *w, int lumping) {
   BfVec *y    = NULL;
   BfVec *tmp1 = NULL;
   BfVec *tmp2 = NULL;
@@ -40,9 +41,11 @@ static BfVec *applyS(BfMat const *L, BfMat *Mfact, BfVec *w, int lumping) {
   } else {
     // Mfact is cholesky factor C*C^T = M.
     // we want to apply C^{-1} * L * C^{-T}
-    tmp1 = bfCholCsrRealSolveVec(Mfact, w); // TODO: needs to be C^{-T} not C^{-1} !
-    tmp2 = bfMatMulVec(L, tmp1);
-    y    = bfCholCsrRealSolveVec(Mfact, tmp2);
+
+    BF_DIE();
+    // tmp1 = bfCholCsrRealSolveVec(bfMatToCholCsrReal(Mfact), w); // TODO: needs to be C^{-T} not C^{-1} !
+    // tmp2 = bfMatMulVec(L, tmp1);
+    // y    = bfCholCsrRealSolveVec(Mfact, tmp2);
   }
 
   if (tmp1 != NULL) bfVecDelete(&tmp1);
@@ -51,7 +54,7 @@ static BfVec *applyS(BfMat const *L, BfMat *Mfact, BfVec *w, int lumping) {
   return y;
 }
 
-static BfVec *chebmul(BfCheb const *cheb, BfMat const *L, BfMat *Mfact, BfVec *w, int lumping) {
+static BfVec *chebmul(BfCheb const *cheb, BfMat const *L, BfMat const *Mfact, BfVec *w, int lumping) {
   BfReal const *c = cheb->c;
 
   BF_ASSERT(cheb->a == 0);
@@ -65,7 +68,7 @@ static BfVec *chebmul(BfCheb const *cheb, BfMat const *L, BfMat *Mfact, BfVec *w
   bfVecDaxpy(x, c[0], y2);
 
   BfVec *y1 = applyS(L, Mfact, w, lumping);
-  
+
   bfVecDscal(y1, 2/lamMax);
   bfVecDaxpy(y1, -1, w);
   bfVecDaxpy(x, c[1], y1);
@@ -93,13 +96,14 @@ static BfVec *sample_z(BfCheb const *cheb, BfMat const *L, BfMat const *Mfact, i
   BfSize n = bfMatGetNumRows(L);
   BfVec *w = bfVecRealToVec(bfVecRealNewRandn(n));
   BfVec *x = chebmul(cheb, L, Mfact, w, lumping);
-  BfVec *z = NULL; 
+  BfVec *z = NULL;
   if (lumping) {
     z = bfMatMulVec(Mfact, x);
   } else {
-    z = bfCholCsrRealSolveVec(Mfact, x); // TODO: needs to be C^{-T} not C^{-1} !
+    BF_DIE();
+    // z = bfCholCsrRealSolveVec(Mfact, x); // TODO: needs to be C^{-T} not C^{-1} !
   }
-  
+
   bfVecDelete(&w);
   bfVecDelete(&x);
   return z;
@@ -110,7 +114,8 @@ static BfVec *cov_matvec(BfVec *v, BfCheb const *cheb, BfMat const *L, BfMat con
   if (lumping) {
     tmp = bfMatMulVec(Mfact, v);
   } else {
-    tmp = bfCholCsrRealSolveVec(Mfact, v);
+    BF_DIE();
+    // tmp = bfCholCsrRealSolveVec(Mfact, v);
   }
   BfVec *tmp1 = chebmul(cheb, L, Mfact, tmp, lumping);
   bfVecDelete(&tmp);
@@ -120,7 +125,8 @@ static BfVec *cov_matvec(BfVec *v, BfCheb const *cheb, BfMat const *L, BfMat con
   if (lumping) {
     tmp1 = bfMatMulVec(Mfact, tmp);
   } else {
-    tmp1 = bfCholCsrRealSolveVec(Mfact, tmp); // TODO: needs to be C^{-T} not C^{-1} !
+    BF_DIE();
+    // tmp1 = bfCholCsrRealSolveVec(Mfact, tmp); // TODO: needs to be C^{-T} not C^{-1} !
   }
   bfVecDelete(&tmp);
   return tmp1;
@@ -147,7 +153,8 @@ static void get_factM(BfMat *M, BfMat **MfactHandle, int lumping) {
     BfCholCsrReal *MSqrt = bfCholCsrRealNew();
     bfCholCsrRealInit(MSqrt, M);
 
-    *MfactHandle = MSqrt;
+    BF_DIE();
+    // *MfactHandle = bfCholCsrRealToMat(MSqrt);
   }
 }
 
@@ -222,14 +229,14 @@ int main(int argc, char const *argv[]) {
   /** Sample z once and write it out to disk for plotting. */
 
   BfVec *z = sample_z(&gammaCheb, L, Mfact, lumping);
-  
+
   sprintf(filename, "z_cheb_p%lu_kappa%.1e_nu%.1e.bin", p, kappa, nu);
   bfVecSave(z, filename);
   bfVecDelete(&z);
 
   /** Time how long it takes to sample z numSamples times. */
 
-  printf("computing %i samples\n", numSamples);
+  printf("computing %lu samples\n", numSamples);
   bfToc();
   for (BfSize _ = 0; _ < numSamples; ++_) {
     z = sample_z(&gammaCheb, L, Mfact, lumping);
@@ -280,10 +287,10 @@ int main(int argc, char const *argv[]) {
       bfVecDelete(&tmp1);
   }
 
-  sprintf(filename, "randvecs_cheb_p%i_kappa%.1e_nu%.1e.bin", p, kappa, nu);
+  sprintf(filename, "randvecs_cheb_p%lu_kappa%.1e_nu%.1e.bin", p, kappa, nu);
   bfMatDenseRealSave(randvecs, filename);
 
-  sprintf(filename, "matvecs_cheb_p%i_kappa%.1e_nu%.1e.bin", p, kappa, nu);
+  sprintf(filename, "matvecs_cheb_p%lu_kappa%.1e_nu%.1e.bin", p, kappa, nu);
   bfMatDenseRealSave(matvecs, filename);
 
   printf("cleaning up\n");

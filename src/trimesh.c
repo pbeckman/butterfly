@@ -919,6 +919,10 @@ BfSize bfTrimeshGetNumFaces(BfTrimesh const *trimesh) {
   return trimesh->numFaces;
 }
 
+BfPoints3 *bfTrimeshGetVerts(BfTrimesh *trimesh) {
+  return trimesh->verts;
+}
+
 BfPoints3 const *bfTrimeshGetVertsConst(BfTrimesh const *trimesh) {
   return trimesh->verts;
 }

@@ -176,7 +176,7 @@ int main(int argc, char const *argv[]) {
     err_est = sqrt(numer)/sqrt(denom);
 
     BfReal loopTime = bfToc();
-    
+
     eigTime += result.eigenbandTime;
     facTime += loopTime + result.totalTime - result.eigenbandTime;
 
@@ -218,7 +218,7 @@ int main(int argc, char const *argv[]) {
 
   /** Time how long it takes to sample z numSamples times. */
 
-  printf("computing %i samples\n", numSamples);
+  printf("computing %lu samples\n", numSamples);
   bfToc();
   for (BfSize _ = 0; _ < numSamples; ++_) {
     z = sample_z(Phi, GammaLam, rowPerm);
@@ -233,7 +233,7 @@ int main(int argc, char const *argv[]) {
   sprintf(filename, "performance_kappa%.1e_nu%.1e.txt", kappa, nu);
   sprintf(
     line,
-    "%.1e\t%i\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n",
+    "%.1e\t%lu\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\t%.8e\n",
     tol, freqs->size, eigTime, facTime, sampling_time/numSamples,
     numBytesCompressed/pow(1024, 2),
     numBytesUncompressed/pow(1024, 2),
@@ -284,7 +284,7 @@ int main(int argc, char const *argv[]) {
 
       // apply covariance matrix
       BfVec *tmp1 = cov_matvec(x, Phi, GammaLam, rowPerm, revRowPerm);
-      
+
       // Set column of outputs:
       bfMatDenseRealSetCol(matvecs, j, tmp1);
 
