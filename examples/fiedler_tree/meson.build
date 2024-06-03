@@ -4,7 +4,7 @@ executable(
   dependencies : [butterfly_dep, m_dep]
 )
 
-foreach obj_file : [ 'dragon0.obj', 'dragon1.obj', 'dragon2.obj', 'dragon3.obj' ]
+foreach obj_file : [ 'dragon0.obj', 'dragon1.obj', 'dragon2.obj']
   fs.copyfile(obj_file, obj_file)
 endforeach
 

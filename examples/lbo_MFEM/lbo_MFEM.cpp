@@ -163,6 +163,8 @@ int main(int argc, char *argv[])
    m->Assemble();
    m->Finalize();
 
+   // TODO: upcast indptr and indices to BfSize so we can read them into bf_lbo
+   // TODO: GetI() includes index length(I), so it needs to be truncated by one
    const SparseMatrix& A = a->SpMat();
    const int *A_indptr = A.GetI();
    const int *A_indices = A.GetJ();
@@ -173,23 +175,23 @@ int main(int argc, char *argv[])
    const int *M_indices = M.GetJ();
    const double *M_data = M.GetData();
 
-   fp = fopen("A_indptr.bin", "w");
+   fp = fopen("L_rowptr.bin", "w");
    fwrite(A_indptr, sizeof(int), A.NumRows() + 1, fp);
    fclose(fp);
 
-   fp = fopen("A_indices.bin", "w");
+   fp = fopen("L_colind.bin", "w");
    fwrite(A_indices, sizeof(int), A.NumNonZeroElems(), fp);
    fclose(fp);
 
-   fp = fopen("A_data.bin", "w");
+   fp = fopen("L_data.bin", "w");
    fwrite(A_data, sizeof(double), A.NumNonZeroElems(), fp);
    fclose(fp);
 
-   fp = fopen("M_indptr.bin", "w");
+   fp = fopen("M_rowptr.bin", "w");
    fwrite(M_indptr, sizeof(int), M.NumRows() + 1, fp);
    fclose(fp);
 
-   fp = fopen("M_indices.bin", "w");
+   fp = fopen("M_colind.bin", "w");
    fwrite(M_indices, sizeof(int), M.NumNonZeroElems(), fp);
    fclose(fp);
 
