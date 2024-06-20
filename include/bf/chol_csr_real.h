@@ -5,8 +5,10 @@
 
 /** Interface: Chol */
 
+void bfCholCsrRealDelete(BfCholCsrReal **cholCsrReal);
 BfMat *bfCholCsrRealSolve(BfCholCsrReal const *cholCsrReal, BfMat const *B);
 BfVec *bfCholCsrRealSolveVec(BfCholCsrReal const *cholCsrReal, BfVec const *b);
+BfVec *bfCholCsrRealFacSolveVec(BfCholCsrReal const *cholCsrReal, BfVec const *b, bool transposed);
 
 /** Upcasting: CholCsrReal -> Chol */
 

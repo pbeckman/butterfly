@@ -18,9 +18,15 @@ struct BfCholCsrRealImpl {
 /** Interface: Chol */
 
 static BfCholVtable CHOL_VTABLE = {
+  .Delete = (__typeof__(&bfCholDelete))bfCholCsrRealDelete,
   .Solve = (__typeof__(&bfCholSolve))bfCholCsrRealSolve,
   .SolveVec = (__typeof__(&bfCholSolveVec))bfCholCsrRealSolveVec,
+  .FacSolveVec = (__typeof__(&bfCholFacSolveVec))bfCholCsrRealFacSolveVec,
 };
+
+void bfCholCsrRealDelete(BfCholCsrReal **cholCsrReal) {
+  bfCholCsrRealDeinitAndDealloc(cholCsrReal);
+}
 
 BfMat *bfCholCsrRealSolve(BfCholCsrReal const *cholCsrReal, BfMat const *B) {
   (void)cholCsrReal;
@@ -28,7 +34,8 @@ BfMat *bfCholCsrRealSolve(BfCholCsrReal const *cholCsrReal, BfMat const *B) {
   BF_DIE();
 }
 
-static BfVec *solve_vecReal(BfCholCsrReal const *cholCsrReal, BfVecReal const *b) {
+static BfVec *
+solve_vecReal(BfCholCsrReal const *cholCsrReal, BfVecReal const *b, int sys) {
   BF_ERROR_BEGIN();
 
   BfVecReal *x = bfVecRealNew();
@@ -54,7 +61,7 @@ static BfVec *solve_vecReal(BfCholCsrReal const *cholCsrReal, BfVecReal const *b
 
   // TODO: we can probably optimize this a bit by using cholmod_solve2
   // instead of cholmod_solve.
-  cholmod_dense *x_ = cholmod_solve(CHOLMOD_A, cholCsrReal->impl->RFactor, &b_, c);
+  cholmod_dense *x_ = cholmod_solve(sys, cholCsrReal->impl->RFactor, &b_, c);
 
   bfMemCopy(x_->x, n, sizeof(BfReal), x->data);
   cholmod_free_dense(&x_, c);
@@ -71,7 +78,18 @@ static BfVec *solve_vecReal(BfCholCsrReal const *cholCsrReal, BfVecReal const *b
 BfVec *bfCholCsrRealSolveVec(BfCholCsrReal const *cholCsrReal, BfVec const *b) {
   switch (bfVecGetType(b)) {
   case BF_TYPE_VEC_REAL:
-    return solve_vecReal(cholCsrReal, bfVecConstToVecRealConst(b));
+    return solve_vecReal(cholCsrReal, bfVecConstToVecRealConst(b), CHOLMOD_A);
+  default:
+    bfSetError(BF_ERROR_NOT_IMPLEMENTED);
+    return NULL;
+  }
+}
+
+BfVec *bfCholCsrRealFacSolveVec(BfCholCsrReal const *cholCsrReal, BfVec const *b, bool transposed) {
+  switch (bfVecGetType(b)) {
+  case BF_TYPE_VEC_REAL:
+    int sys = transposed ? CHOLMOD_L : CHOLMOD_Lt;
+    return solve_vecReal(cholCsrReal, bfVecConstToVecRealConst(b), sys);
   default:
     bfSetError(BF_ERROR_NOT_IMPLEMENTED);
     return NULL;
