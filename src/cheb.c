@@ -45,9 +45,9 @@ BfReal bfChebStdGetErrorEstimate(BfChebStd const *cheb) {
 }
 
 /* This function simultaneously constructs the transpose of the
- * pseudo-Vandermonde for the Chebyshev polynomials and projects onto
- * them, returning the Chebysehv coefficients for f transformed to the
- * domain [-1, 1]. */
+ * pseudo-Vandermonde matrix for the Chebyshev polynomials and
+ * projects onto them, returning the Chebysehv coefficients for f
+ * transformed to the domain [-1, 1]. */
 void bfChebStdInterp(BfChebStd *cheb, BfReal (*f)(BfReal), BfReal a, BfReal b, BfReal const *x) {
   BF_ERROR_BEGIN();
 
