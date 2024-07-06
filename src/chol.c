@@ -14,6 +14,10 @@ BfVec *bfCholSolveVec(BfChol const *chol, BfVec const *b) {
   return chol->vtbl->SolveVec(chol, b);
 }
 
+BfVec *bfCholFacSolveVec(BfChol const *chol, BfVec const *b, bool transposed) {
+  return chol->vtbl->FacSolveVec(chol, b, transposed);
+}
+
 /** Implementation: Chol */
 
 void bfCholInit(BfChol *chol, BfCholVtable *vtbl) {
