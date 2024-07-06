@@ -165,10 +165,10 @@ int main(int argc, char *argv[])
 
    // TODO: upcast indptr and indices to BfSize so we can read them into bf_lbo
    // TODO: GetI() includes index length(I), so it needs to be truncated by one
-   const SparseMatrix& A = a->SpMat();
-   const int *A_indptr = A.GetI();
-   const int *A_indices = A.GetJ();
-   const double *A_data = A.GetData();
+   const SparseMatrix& L = a->SpMat();
+   const int *L_indptr = L.GetI();
+   const int *L_indices = L.GetJ();
+   const double *L_data = L.GetData();
 
    const SparseMatrix& M = m->SpMat();
    const int *M_indptr = M.GetI();
@@ -176,15 +176,15 @@ int main(int argc, char *argv[])
    const double *M_data = M.GetData();
 
    fp = fopen("L_rowptr.bin", "w");
-   fwrite(A_indptr, sizeof(int), A.NumRows() + 1, fp);
+   fwrite(L_indptr, sizeof(int), L.NumRows() + 1, fp);
    fclose(fp);
 
    fp = fopen("L_colind.bin", "w");
-   fwrite(A_indices, sizeof(int), A.NumNonZeroElems(), fp);
+   fwrite(L_indices, sizeof(int), L.NumNonZeroElems(), fp);
    fclose(fp);
 
    fp = fopen("L_data.bin", "w");
-   fwrite(A_data, sizeof(double), A.NumNonZeroElems(), fp);
+   fwrite(L_data, sizeof(double), L.NumNonZeroElems(), fp);
    fclose(fp);
 
    fp = fopen("M_rowptr.bin", "w");
@@ -200,7 +200,6 @@ int main(int argc, char *argv[])
    fclose(fp);
 
    const GridFunction *nodes = mesh->GetNodes();
-   std::cout << nodes << std::endl;
 
    fp = fopen("nodes.bin", "w");
    fwrite(nodes->GetData(), sizeof(double), nodes->Size(), fp);

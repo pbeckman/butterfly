@@ -5,12 +5,12 @@ mkdir -p sphere_meshes/p
 mkdir -p sphere_meshes/hp
 
 move_to_dir () {
-	mv A_data.bin $1
-	mv A_indices.bin $1
-	mv A_indptr.bin $1
+	mv L_data.bin $1
+	mv L_colind.bin $1
+	mv L_rowptr.bin $1
 	mv M_data.bin $1
-	mv M_indices.bin $1
-	mv M_indptr.bin $1
+	mv M_colind.bin $1
+	mv M_rowptr.bin $1
 	mv nodes.bin $1
 }
 
