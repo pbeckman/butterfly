@@ -98,6 +98,10 @@ BfVec *bfCholCsrRealFacSolveVec(BfCholCsrReal const *cholCsrReal, BfVec const *b
 
 /** Upcasting: CholCsrReal -> Chol */
 
+BfChol *bfCholCsrRealToChol(BfCholCsrReal *cholCsrReal) {
+  return &cholCsrReal->super;
+}
+
 /** Downcasting: Chol -> CholCsrReal */
 
 /** Implementation: CholCsrReal */
