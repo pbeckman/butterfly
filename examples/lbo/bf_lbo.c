@@ -260,6 +260,10 @@ int main(int argc, char *argv[]) {
     strcpy(dataPath, opts.matPath);
     strcat(dataPath, "L_data.bin");
     L = bfMatCsrRealToMat(bfMatCsrRealNewFromBinaryFiles(rowptrPath, colindPath, dataPath));
+    if (bfMatGetNumRows(L) != bfMatGetNumCols(L)) {
+      printf("L must have same number of rows and columns\n");
+      exit(EXIT_FAILURE);
+    }
 
     rowptrPath[0] = '\0';
     colindPath[0] = '\0';
@@ -271,6 +275,10 @@ int main(int argc, char *argv[]) {
     strcpy(dataPath, opts.matPath);
     strcat(dataPath, "M_data.bin");
     M = bfMatCsrRealToMat(bfMatCsrRealNewFromBinaryFiles(rowptrPath, colindPath, dataPath));
+    if (bfMatGetNumRows(M) != bfMatGetNumCols(M)) {
+      printf("M must have same number of rows and columns\n");
+      exit(EXIT_FAILURE);
+    }
 
     char vertsPath[200];
     strcpy(vertsPath, opts.matPath);
