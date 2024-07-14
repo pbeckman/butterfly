@@ -132,9 +132,9 @@ static BfMat *makeFirstFactor(BfHelm2 const *helm,
     mat->super.block[i]->aux = facAux;
     mat->super.block[i]->auxDelete = (BfAuxDeleteFunc)facAuxDelete;
 #else
-    bfFreePoints2(&srcPts);
-    bfFreePoints2(&tgtCircPts);
-    bfFreePoints2(&srcCircPts);
+    bfFreePoints2(srcPts);
+    bfFreePoints2(tgtCircPts);
+    bfFreePoints2(srcCircPts);
 #endif
 
     if (srcNormals != NULL)
@@ -375,9 +375,9 @@ static BfMat *makeFactor(BfHelm2 const *helm, BfMat const *prevMat, BfPtrArray c
       mat->super.block[blockIndex]->aux = facAux;
       mat->super.block[blockIndex]->auxDelete = (BfAuxDeleteFunc)facAuxDelete;
 #else
-      bfFreePoints2(&srcChildPts);
-      bfFreePoints2(&srcPts);
-      bfFreePoints2(&tgtChildPts);
+      bfFreePoints2(srcChildPts);
+      bfFreePoints2(srcPts);
+      bfFreePoints2(tgtChildPts);
 #endif
 
       if (srcChildNormals != NULL)

@@ -158,13 +158,15 @@ BfVec *bfMatBlockDiagGetRowCopy(BfMat const *mat, BfSize i) {
     RAISE_ERROR(BF_ERROR_NOT_IMPLEMENTED);
 
 
-  BfSize k = 0, i0, i1;
+  BfSize k = 0, i0 = BF_SIZE_BAD_VALUE, i1 = BF_SIZE_BAD_VALUE;
   for (; k < numRowBlocks; ++k) {
     i0 = matBlockDiag->super.rowOffset[k];
     i1 = matBlockDiag->super.rowOffset[k + 1];
     if (i0 <= i && i < i1)
       break;
   }
+  BF_ASSERT(BF_SIZE_OK(i0));
+  BF_ASSERT(BF_SIZE_OK(i1));
 
   block = BLOCK(matBlockDiag, k);
 

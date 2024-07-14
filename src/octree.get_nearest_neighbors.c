@@ -24,6 +24,7 @@ typedef struct {
   };
 } PqueueElt;
 
+#if BF_DEBUG
 static bool pqueueEltsAreEqual(PqueueElt const *elt1, PqueueElt const *elt2) {
   if (elt1->type != elt2->type)
     return false;
@@ -32,6 +33,7 @@ static bool pqueueEltsAreEqual(PqueueElt const *elt1, PqueueElt const *elt2) {
   else
     return elt1->node == elt2->node;
 }
+#endif
 
 static int pqueueEltCmp(PqueueElt const *elt1, PqueueElt const *elt2, void *arg) {
   (void)arg;
