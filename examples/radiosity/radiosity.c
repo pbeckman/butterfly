@@ -3,18 +3,31 @@
 #include <bf/trimesh.h>
 #include <bf/util.h>
 
+#ifndef BF_EMBREE
+#  error "Can only build examples/radiosity when compiled with Embree"
+#endif
+
 #include <stdlib.h>
 
 int main(void) {
   bfToc();
 
-  BfTrimesh *trimesh = bfTrimeshNewFromObjFile("67p.obj");
-  BfSize numVerts = bfTrimeshGetNumVerts(trimesh);
-  BfSize numFaces = bfTrimeshGetNumFaces(trimesh);
+  char const *path = "67p.obj";
+
+  BfTrimesh *trimesh = bfTrimeshNewFromObjFile(path);
+
+  if (!bfTrimeshHasVertexNormals(trimesh)) {
+    printf("tried to load obj file (\"%s\") without vertex normals", path);
+    exit(EXIT_FAILURE);
+  }
 
   if (bfTrimeshHasVertexNormals(trimesh) && !bfTrimeshHasFaceNormals(trimesh))
     bfTrimeshComputeFaceNormalsMatchingVertexNormals(trimesh);
 
+  bfTrimeshInitEmbree(trimesh);
+
+  BfSize numVerts = bfTrimeshGetNumVerts(trimesh);
+  BfSize numFaces = bfTrimeshGetNumFaces(trimesh);
   printf("loaded mesh with %lu verts and %lu faces [%0.2fs]\n", numVerts, numFaces, bfToc());
 
   BfSizeArray *rowInds = bfSizeArrayNewIota(numFaces);

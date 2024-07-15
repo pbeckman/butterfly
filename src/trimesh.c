@@ -67,6 +67,42 @@ struct BfTrimesh {
   BfReal *faceAreas;
 };
 
+void invalidate(BfTrimesh *trimesh) {
+  trimesh->verts = NULL;
+
+  trimesh->numFaces = BF_SIZE_BAD_VALUE;
+  trimesh->faces = NULL;
+
+  trimesh->edges = NULL;;
+
+  trimesh->vfOffset = NULL;
+  trimesh->vf = NULL;
+  trimesh->vvOffset = NULL;
+  trimesh->vv = NULL;
+
+  trimesh->ef = NULL;
+
+  trimesh->isBoundaryEdge = NULL;
+  trimesh->isBoundaryVert = NULL;
+
+  trimesh->boundaryEdges = NULL;
+  trimesh->numBoundaryEdges = BF_SIZE_BAD_VALUE;
+
+#ifdef BF_EMBREE
+  trimesh->embreeInitialized = false;
+  trimesh->device = NULL;
+  trimesh->geometry = NULL;
+  trimesh->scene = NULL;
+  trimesh->vertexBuffer = NULL;
+  trimesh->indexBuffer = NULL;
+#endif
+
+  trimesh->faceCentroids = NULL;
+  trimesh->vertexNormals = NULL;
+  trimesh->faceNormals = NULL;
+  trimesh->faceAreas = NULL;
+}
+
 int comparFace(BfSize const *face1, BfSize const *face2, void *arg) {
   (void)arg;
   if (face1[0] == face2[0] && face1[1] == face2[1])
@@ -151,6 +187,8 @@ BfTrimesh *bfTrimeshNewFromObjFile(char const *objPath) {
   BfTrimesh *trimesh = bfMemAlloc(1, sizeof(BfTrimesh));
   HANDLE_ERROR();
 
+  invalidate(trimesh);
+
   bfTrimeshInitFromObjFile(trimesh, objPath);
   HANDLE_ERROR();
 
@@ -166,6 +204,8 @@ BfTrimesh *bfTrimeshNewFromVertsAndFaces(BfPoints3 const *verts, BfSize numFaces
 
   BfTrimesh *trimesh = bfMemAlloc(1, sizeof(BfTrimesh));
   HANDLE_ERROR();
+
+  invalidate(trimesh);
 
   bfTrimeshInitFromVertsAndFaces(trimesh, verts, numFaces, faces);
   HANDLE_ERROR();
@@ -546,9 +586,6 @@ static void initCommon(BfTrimesh *trimesh) {
   initFaceCentroids(trimesh);
   initFaceAreas(trimesh);
 
-  trimesh->vertexNormals = NULL;
-  trimesh->faceNormals = NULL;
-
   BF_ERROR_END() {
     BF_DIE();
   }
@@ -862,43 +899,21 @@ void bfTrimeshInitEmbree(BfTrimesh *trimesh) {
 
 void bfTrimeshDeinit(BfTrimesh *trimesh) {
   bfPoints3DeinitAndDealloc(&trimesh->verts);
-
   bfMemFree(trimesh->faces);
-  trimesh->faces = NULL;
-
-  trimesh->numFaces = BF_SIZE_BAD_VALUE;
-
   bfArrayDeinitAndDealloc(&trimesh->edges);
-
   bfMemFree(trimesh->vfOffset);
-  trimesh->vfOffset = NULL;
-
   bfMemFree(trimesh->vf);
-  trimesh->vf = NULL;
-
   bfMemFree(trimesh->vvOffset);
-  trimesh->vvOffset = NULL;
-
   bfMemFree(trimesh->vv);
-  trimesh->vv = NULL;
-
   bfArrayDeinitAndDealloc(&trimesh->ef);
-
   bfMemFree(trimesh->isBoundaryEdge);
-  trimesh->isBoundaryEdge = NULL;
-
   bfMemFree(trimesh->isBoundaryVert);
-  trimesh->isBoundaryVert = NULL;
-
   bfMemFree(trimesh->boundaryEdges);
-  trimesh->boundaryEdges = NULL;
-
-  trimesh->numBoundaryEdges = BF_SIZE_BAD_VALUE;
-
 #ifdef BF_EMBREE
   if (trimesh->embreeInitialized)
     deinitEmbree(trimesh);
 #endif
+  invalidate(trimesh);
 }
 
 void bfTrimeshDealloc(BfTrimesh **trimesh) {
@@ -925,6 +940,14 @@ BfPoints3 *bfTrimeshGetVerts(BfTrimesh *trimesh) {
 
 BfPoints3 const *bfTrimeshGetVertsConst(BfTrimesh const *trimesh) {
   return trimesh->verts;
+}
+
+BfReal *bfTrimeshGetVertsPtr(BfTrimesh *trimesh) {
+  return trimesh->verts->data[0];
+}
+
+BfSize *bfTrimeshGetFacesPtr(BfTrimesh *trimesh) {
+  return trimesh->faces[0];
 }
 
 void bfTrimeshGetVertex(BfTrimesh const *trimesh, BfSize i, BfPoint3 x) {

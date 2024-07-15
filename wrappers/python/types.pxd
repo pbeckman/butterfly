@@ -44,6 +44,9 @@ cdef extern from "bf/types.h":
     struct BfVec:
         pass
 
+    struct BfVecReal:
+        pass
+
     struct BfTree:
         pass
 

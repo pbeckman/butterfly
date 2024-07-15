@@ -546,6 +546,22 @@ BfVecReal *bfVecRealNewFromCsv(char const *path) {
   return vecReal;
 }
 
+BfVecReal *bfVecRealNewViewFromPtr(BfSize size, BfReal *data, BfSize stride) {
+  BF_ERROR_BEGIN();
+
+  BfVecReal *vecReal = bfVecRealNew();
+  HANDLE_ERROR();
+
+  bfVecRealInitView(vecReal, size, stride, data);
+  HANDLE_ERROR();
+
+  BF_ERROR_END() {
+    BF_DIE();
+  }
+
+  return vecReal;
+}
+
 void bfVecRealInit(BfVecReal *vec, BfSize size) {
   BF_ERROR_BEGIN();
 
@@ -762,4 +778,8 @@ BfPerm *bfVecRealArgsort(BfVecReal const *vecReal) {
 
 BfSize bfVecRealGetSize(BfVecReal const *vecReal) {
   return bfVecGetSize(bfVecRealConstToVecConst(vecReal));
+}
+
+BfReal *bfVecRealGetDataPtr(BfVecReal *vecReal) {
+  return vecReal->data;
 }

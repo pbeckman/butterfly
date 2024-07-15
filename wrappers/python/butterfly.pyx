@@ -58,6 +58,7 @@ from tree_traversals cimport *
 from trimesh cimport *
 from types cimport *
 from vec cimport *
+from vec_real cimport *
 from vectors cimport *
 
 def seed(BfSize seed):
@@ -79,6 +80,15 @@ cdef reify_mat(BfMat *mat):
         return MatDenseComplex.from_ptr(bfMatToMatDenseComplex(mat))
     else:
         raise TypeError(f'failed to reify BfMat: got {type_}')
+
+cdef reify_vec(BfVec *vec):
+    cdef BfType type_ = bfVecGetType(vec)
+    if type_ == BF_TYPE_VEC:
+        raise RuntimeError()
+    elif type_ == BF_TYPE_VEC_REAL:
+        return VecReal.from_ptr(bfVecToVecReal(vec))
+    else:
+        raise TypeError(f'failed to reify BfVec: got {type_}')
 
 cdef reify_tree(BfTree *tree):
     cdef BfType type_ = bfTreeGetType(tree)
@@ -367,10 +377,18 @@ cdef class Mat:
         return self
 
     def _matmul_ndarray(self, cnp.ndarray arr):
-        return self._matmul_mat(Mat.from_ndarray(arr))
+        if arr.ndim == 1:
+            return self._matmul_vec(Vec.from_ndarray(arr))
+        elif arr.ndim == 2:
+            return self._matmul_mat(Mat.from_ndarray(arr))
+        else:
+            raise ValueError(f"can't multiply matrix with arr ({arr.ndim = })")
 
     def _matmul_mat(self, Mat mat):
         return reify_mat(bfMatMul(self.mat, mat.mat))
+
+    def _matmul_vec(self, Vec vec):
+        return reify_vec(bfMatMulVec(self.mat, vec.vec))
 
     def __matmul__(self, mat):
         if isinstance(mat, np.ndarray):
@@ -554,6 +572,7 @@ cdef class MatCsrReal(Mat):
 
         cdef MatCsrReal _ = MatCsrReal.__new__(MatCsrReal)
         _.mat_csr_real = bfMatCsrRealNewViewFactorMatrixFromTrimesh(trimesh.trimesh, rowInds, colInds)
+        _.mat = bfMatCsrRealToMat(_.mat_csr_real)
 
         bfSizeArrayDeinitAndDealloc(&rowInds)
         bfSizeArrayDeinitAndDealloc(&colInds)
@@ -1144,9 +1163,26 @@ cdef class Trimesh:
         _.trimesh = bfTrimeshNewFromObjFile(path_c_string)
         return _
 
+    def init_embree(self):
+        bfTrimeshInitEmbree(self.trimesh)
+
+    @property
+    def num_verts(self):
+        return bfTrimeshGetNumVerts(self.trimesh)
+
     @property
     def num_faces(self):
         return bfTrimeshGetNumFaces(self.trimesh)
+
+    @property
+    def verts(self):
+        cdef BfReal *data = bfTrimeshGetVertsPtr(self.trimesh)
+        return np.asarray(<BfReal[:self.num_verts, :3]>data)
+
+    @property
+    def faces(self):
+        cdef BfSize *data = bfTrimeshGetFacesPtr(self.trimesh)
+        return np.asarray(<BfSize[:self.num_faces, :3]>data)
 
     @property
     def vertex_normals(self):
@@ -1163,6 +1199,45 @@ cdef class Trimesh:
 
 cdef class Vec:
     cdef BfVec *vec
+
+    @staticmethod
+    cdef from_ndarray(cnp.ndarray arr):
+        if arr.dtype == np.float64:
+            return VecReal.from_ndarray(arr)
+        else:
+            raise NotImplementedError()
+
+    def __len__(self):
+        return bfVecGetSize(self.vec)
+
+cdef class VecReal(Vec):
+    cdef BfVecReal *vecReal
+
+    @staticmethod
+    cdef VecReal from_ndarray(cnp.ndarray arr):
+        # Make sure arr consists of packed 1D doubles
+        assert arr.ndim == 1
+        assert arr.flags.c_contiguous
+        assert arr.itemsize == 8
+
+        cdef BfSize n = arr.shape[0]
+        cdef BfReal[:] data = arr
+
+        cdef VecReal _ = VecReal.__new__(VecReal)
+        _.vecReal = bfVecRealNewViewFromPtr(n, &data[0], 1)
+        _.vec = bfVecRealToVec(_.vecReal)
+        return _
+
+    @staticmethod
+    cdef from_ptr(BfVecReal *vecReal):
+        cdef VecReal _ = VecReal.__new__(VecReal)
+        _.vecReal = vecReal
+        _.vec = bfVecRealToVec(_.vecReal)
+        return _
+
+    def to_array(self):
+        cdef BfReal *data = bfVecRealGetDataPtr(self.vecReal)
+        return np.asarray(<BfReal[:len(self)]>data)
 
 cdef class Vectors2:
     cdef BfVectors2 *vectors

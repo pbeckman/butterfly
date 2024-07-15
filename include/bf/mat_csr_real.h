@@ -2,7 +2,7 @@
 
 #include "mat.h"
 
-/** Interface: MatCsrReal */
+/** Interface: Mat */
 
 BfMat *bfMatCsrRealGetView(BfMatCsrReal *matCsrReal);
 BfMat *bfMatCsrRealCopy(BfMat const *mat);
