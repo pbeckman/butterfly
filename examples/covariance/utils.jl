@@ -12,14 +12,15 @@ function matern_sdf(k, nu, l)
     end
 end
 
-function geometrybasics_to_meshes(mesh)
-    vertices = Meshes.Point3.(
-        getfield.(MeshIO.decompose(MeshIO.Point3{Float64}, mesh), :data)
+function geometrybasics_to_meshes(gbmesh::GeometryBasics.Mesh{3, T}) where T
+    vertices = Meshes.Point.(
+        getfield.(MeshIO.decompose(MeshIO.Point3{T}, gbmesh), :data)
         )
     connections = Meshes.connect.([
-        getfield(GeometryBasics.value.(face), :data) for face in GeometryBasics.faces(mesh)
+        getfield(GeometryBasics.value.(face), :data) for face in GeometryBasics.faces(gbmesh)
         ])
-    return Meshes.SimpleMesh(vertices, connections)
+    mesh = Meshes.SimpleMesh(vertices, connections)
+    return mesh, MeshIO.decompose(MeshIO.Point3{T}, gbmesh)
 end
 
 function load_sparse_matrix(data, colind, rowptr)
@@ -31,9 +32,8 @@ function load_sparse_matrix(data, colind, rowptr)
 end
 
 function load_mesh(mesh_file)
-    gbmesh   = load(mesh_file)
-    vertices = MeshIO.decompose(MeshIO.Point3{Float64}, gbmesh)
-    mesh     = geometrybasics_to_meshes(gbmesh)
+    gbmesh = load(mesh_file)
+    mesh, vertices = geometrybasics_to_meshes(gbmesh)
 
     return gbmesh, mesh, vertices, length(vertices)
 end
@@ -47,8 +47,7 @@ function plot_nodal_values(gbmesh, vals; meshname="bunny0", cmap=:turbo, wframe=
         lscene,
         gbmesh, 
         color=vals,
-        colormap=cmap,
-        showfacets=false
+        colormap=cmap
     )
     if wframe
         Mke.wireframe!(
