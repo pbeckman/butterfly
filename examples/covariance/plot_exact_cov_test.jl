@@ -8,7 +8,7 @@ println("Loading mesh...")
 
 mesh_file = ARGS[1]
 meshname  = split(split(mesh_file, "/")[end], ".")[1]
-_, mesh, vertices, n = load_mesh(mesh_file)
+gbmesh, mesh, vertices, n = load_mesh(mesh_file)
 
 ## load matrices
 println("Loading FEM matrices...")
