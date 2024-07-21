@@ -17,4 +17,4 @@ executable(
 )
 
 fs.copyfile('make_sphere_data.sh', 'make_sphere_data.sh')
-fs.copyfile('make_plots.py', 'make_plots_py')
+fs.copyfile('make_plots.py', 'make_plots.py')
