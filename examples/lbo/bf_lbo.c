@@ -254,14 +254,15 @@ int main(int argc, char *argv[]) {
     char colindPath[200];
     char dataPath[200];
     strcpy(rowptrPath, opts.matPath);
-    strcat(rowptrPath, "L_rowptr.bin");
+    strcat(rowptrPath, "/L_rowptr.bin");
     strcpy(colindPath, opts.matPath);
-    strcat(colindPath, "L_colind.bin");
+    strcat(colindPath, "/L_colind.bin");
     strcpy(dataPath, opts.matPath);
-    strcat(dataPath, "L_data.bin");
+    strcat(dataPath, "/L_data.bin");
     L = bfMatCsrRealToMat(bfMatCsrRealNewFromBinaryFiles(rowptrPath, colindPath, dataPath));
     if (bfMatGetNumRows(L) != bfMatGetNumCols(L)) {
-      printf("L must have same number of rows and columns\n");
+      printf("L must have same number of rows and columns (got %lu x %lu matrix)\n",
+             bfMatGetNumRows(L), bfMatGetNumCols(L));
       exit(EXIT_FAILURE);
     }
 
@@ -269,11 +270,11 @@ int main(int argc, char *argv[]) {
     colindPath[0] = '\0';
     dataPath[0] = '\0';
     strcpy(rowptrPath, opts.matPath);
-    strcat(rowptrPath, "M_rowptr.bin");
+    strcat(rowptrPath, "/M_rowptr.bin");
     strcpy(colindPath, opts.matPath);
-    strcat(colindPath, "M_colind.bin");
+    strcat(colindPath, "/M_colind.bin");
     strcpy(dataPath, opts.matPath);
-    strcat(dataPath, "M_data.bin");
+    strcat(dataPath, "/M_data.bin");
     M = bfMatCsrRealToMat(bfMatCsrRealNewFromBinaryFiles(rowptrPath, colindPath, dataPath));
     if (bfMatGetNumRows(M) != bfMatGetNumCols(M)) {
       printf("M must have same number of rows and columns\n");
@@ -282,7 +283,7 @@ int main(int argc, char *argv[]) {
 
     char vertsPath[200];
     strcpy(vertsPath, opts.matPath);
-    strcat(vertsPath, "nodes.bin");
+    strcat(vertsPath, "/nodes.bin");
     verts = bfPoints3NewFromBinaryFile(vertsPath);
 
     numVerts = bfPoints3GetSize(verts);
