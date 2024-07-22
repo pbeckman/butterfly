@@ -392,23 +392,21 @@ int main(int argc, char *argv[]) {
   BfMat *mat = NULL;
 
   BfSize numStreamed = 0;
-  BfReal numBytesCompressed = 0;
-  BfReal numBytesUncompressed = 0;
   while (!bfFacStreamerIsDone(facStreamer)) {
     bfLboFeedFacStreamerNextEigenband(facStreamer, freqs, L, M);
 
     bfToc();
     facSpan = bfFacStreamerGetFacSpan(facStreamer);
     mat = bfFacSpanGetMat(facSpan, BF_POLICY_VIEW);
-    numBytesCompressed = bfMatNumBytes(mat);
+    BfSize numBytesCompressed = bfMatNumBytes(mat);
     bfMatDelete(&mat);
     bfFacSpanDelete(&facSpan);
     // printf("it took %.1e sec to check factorization size\n", bfToc());
-    numBytesUncompressed = sizeof(BfReal)*numVerts*freqs->size;
+    BfSize numBytesUncompressed = sizeof(BfReal)*numVerts*freqs->size;
     printf("- streamed %lu eigs (%1.1f%% of total)\n", freqs->size, (100.0*freqs->size)/numVerts);
     printf("- compressed size:   %.3f MB\n", numBytesCompressed/pow(1024, 2));
     printf("- uncompressed size: %.3f MB\n", numBytesUncompressed/pow(1024, 2));
-    printf("- compression rate:  %.3f\n", numBytesUncompressed/numBytesCompressed);
+    printf("- compression rate:  %.3f\n", (double)numBytesUncompressed/numBytesCompressed);
 
     HANDLE_ERROR();
 
