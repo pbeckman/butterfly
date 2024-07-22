@@ -815,6 +815,11 @@ get_shifted_eigs:
   }
 }
 
+static bool doublesHaveDistinctMidpoint(double lam0, double lam1) {
+  double lam_mid = (lam0 + lam1)/2;
+  return lam0 != lam_mid && lam_mid != lam1;
+}
+
 static BfInterval getPairsCoveringInterval(BfMat const *A, BfMat const *M, BfInterval const *interval, BfRealArray *LamData, BfRealArray *PhiTransposeData) {
   BF_ERROR_BEGIN();
 
@@ -822,11 +827,35 @@ static BfInterval getPairsCoveringInterval(BfMat const *A, BfMat const *M, BfInt
   BfVecReal *coverLam = NULL;
   BfReal const sigma = bfIntervalIsFinite(interval) ?
     bfIntervalGetMidpoint(interval) : bfIntervalGetFiniteEndpoint(interval);
-  BfSize const k = 8;
+
+  /* If we don't have a finite gap between the two eigenvalues on the
+   * edges of the covering interval, then we can't isolate the
+   * interior eigenvalues. Although it's unlikely, we could have a
+   * large number of repeated eigenvalues, which forces our hand: we
+   * need to increase the number of eigenvalues we gather at this
+   * point, otherwise we might miss some. This means that this
+   * algorithm only has the desired asymptotic complexity if there are
+   * at most O(1)---that is, with respect n, the size of A and
+   * M---repeated eigenvalues.
+   *
+   * NOTE: the way we check whether the eigenvalues have a "finite
+   * gap" is operational. We need more than just the pairs of edge
+   * eigenvalues to be distinct, we need their *midpoint* lie between
+   * them (in floating-point arithmetic). So we use that as the
+   * test. See `doublesHaveDistinctMidpoint`. */
+  BfSize const k0 = 8;
+  BfSize k = k0;
+recompute:
   bfGetShiftedEigs(A, M, sigma, k + 2, &coverPhiTranspose, &coverLam);
   HANDLE_ERROR();
-
   BfReal const *lam = coverLam->data;
+  if (!doublesHaveDistinctMidpoint(lam[0], lam[1]) || !doublesHaveDistinctMidpoint(lam[k], lam[k + 1])) {
+    bfLogWarn("increased k from %lu to %lu\n", k, 2*k);
+    k *= 2;
+    bfMatDelete(&coverPhiTranspose);
+    bfVecRealDeinitAndDealloc(&coverLam);
+    goto recompute;
+  }
 
   BfSize i0 = 0;
   while (i0 < k + 2 && !bfIntervalContainsPoint(interval, lam[i0])) ++i0;
