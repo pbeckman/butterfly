@@ -371,7 +371,7 @@ BfMatCsrReal *bfMatCsrRealNewFromBinaryFiles(char const *rowptrPath, char const 
   HANDLE_ERROR();
 
   BfSize numCols = bfSizeArrayGetMaximum(colindArray) + 1;
-  BfSize numRows = bfSizeArrayGetSize(rowptrArray);
+  BfSize numRows = bfSizeArrayGetSize(rowptrArray) - 1;
 
   BfMatCsrReal *matCsrReal = bfMatCsrRealNewFromArrays(
     numRows, numCols, rowptrArray, colindArray, dataArray, BF_POLICY_STEAL);
