@@ -14,46 +14,42 @@ move_to_dir () {
 	mv nodes.bin $1
 }
 
-convert_single_binary_file_to_uint64 () {
-	python <<EOF
-import numpy as np
-import sys
-np.fromfile('${1}', dtype=np.int32).astype(np.uint64).tofile('${1}')
-EOF
-}
-
-convert_binary_files_to_uint64 () {
-	convert_single_binary_file_to_uint64 ${1}/L_colind.bin
-	convert_single_binary_file_to_uint64 ${1}/L_rowptr.bin
-	convert_single_binary_file_to_uint64 ${1}/M_colind.bin
-	convert_single_binary_file_to_uint64 ${1}/M_rowptr.bin
+fix_CSR_bin_files_L_and_M () {
+	./fix_CSR_bin_files.py ${1}/L_data.bin ${1}/L_rowptr.bin ${1}/L_colind.bin
+	./fix_CSR_bin_files.py ${1}/M_data.bin ${1}/M_rowptr.bin ${1}/M_colind.bin
 }
 
 # fix h to some coarse level (e.g. ~5k triangles) and take p from 1 up
 # to ~20 (or whatever the largest p is that gives ~1M degrees of
 # freedom)
 
+echo "generating p-refined meshes..."
 for i in $(seq 1 8); do
+	echo "./lbo_MFEM --elem 0 --order ${i} --refine 5"
 	./lbo_MFEM --elem 0 --order ${i} --refine 5
 	mkdir -p sphere_meshes/p/${i}
 	move_to_dir sphere_meshes/p/${i}
-	convert_binary_files_to_uint64 sphere_meshes/p/${i}
+	fix_CSR_bin_files_L_and_M sphere_meshes/p/${i}
 done
 
 # fix p=1 and for h such that the mesh has ~5k up to ~1M triangles
 # (you can replace the existing sphere meshes)
 
+echo "generating h-refined meshes..."
 for i in $(seq 4 8); do
+	echo "./lbo_MFEM --elem 0 --order 1 --refine ${i}"
 	./lbo_MFEM --elem 0 --order 1 --refine ${i}
 	mkdir -p sphere_meshes/h/${i}
 	move_to_dir sphere_meshes/h/${i}
-	convert_binary_files_to_uint64 sphere_meshes/h/${i}
+	fix_CSR_bin_files_L_and_M sphere_meshes/h/${i}
 done
 
 # pick moderate parameters like p=6 and h such that there are ~100k
 # total DOFs
 
+echo "generating one hp mesh..."
+echo "./lbo_MFEM --elem 0 --order 5 --refine 4"
 ./lbo_MFEM --elem 0 --order 5 --refine 4
 mkdir -p sphere_meshes/hp
 move_to_dir sphere_meshes/hp
-convert_binary_files_to_uint64 sphere_meshes/hp
+fix_CSR_bin_files_L_and_M sphere_meshes/hp
