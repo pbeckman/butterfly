@@ -16,3 +16,5 @@ void bfLog(BfLogLevel logLevel, char const *restrict format, ...);
 void bfLogTodo(char const *restrict format, ...);
 void bfLogDebug(char const *restrict format, ...);
 void bfLogInfo(char const *restrict format, ...);
+void bfLogWarn(char const *restrict format, ...);
+void bfLogError(char const *restrict format, ...);
