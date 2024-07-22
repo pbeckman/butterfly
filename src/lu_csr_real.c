@@ -7,6 +7,7 @@
 #include <bf/error_macros.h>
 #include <bf/mat_csr_real.h>
 #include <bf/mem.h>
+#include <bf/util.h>
 #include <bf/vec_real.h>
 
 #if defined BF_LINUX
@@ -222,6 +223,25 @@ BfLuCsrReal *bfLuCsrRealNew() {
   return luCsrReal;
 }
 
+static void checkUmfpackStatus(int status) {
+  switch (status) {
+  case UMFPACK_OK:
+    break;
+  case UMFPACK_ERROR_n_nonpositive:
+    bfSetError(BF_ERROR_NOT_IMPLEMENTED);
+  case UMFPACK_ERROR_invalid_matrix:
+    bfSetError(BF_ERROR_NOT_IMPLEMENTED);
+  case UMFPACK_ERROR_out_of_memory:
+    bfSetError(BF_ERROR_NOT_IMPLEMENTED);
+  case UMFPACK_ERROR_argument_missing:
+    bfSetError(BF_ERROR_NOT_IMPLEMENTED);
+  case UMFPACK_ERROR_internal_error:
+    bfSetError(BF_ERROR_NOT_IMPLEMENTED);
+  default:
+    BF_DIE();
+  }
+}
+
 void bfLuCsrRealInit(BfLuCsrReal *luCsrReal, BfMat const *mat) {
   BF_ERROR_BEGIN();
 
@@ -237,6 +257,14 @@ void bfLuCsrRealInit(BfLuCsrReal *luCsrReal, BfMat const *mat) {
   /* Can't exceed range of int since UMFPACK uses ints for indices. */
   if (n > INT_MAX)
     RAISE_ERROR(BF_ERROR_INVALID_ARGUMENTS);
+
+  /* Each range of column indices must be sorted in ascending order: */
+  for (BfSize i = 0; i < n; ++i) {
+    BfSize k0 = matCsrReal->rowptr[i];
+    BfSize k1 = matCsrReal->rowptr[i + 1];
+    if (!bfSizeIsStrictlyIncreasing(k1 - k0, &matCsrReal->colind[k0]))
+      RAISE_ERROR(BF_ERROR_INVALID_ARGUMENTS);
+  }
 
   BfSize nnz = matCsrReal->rowptr[n];
 
@@ -270,14 +298,12 @@ void bfLuCsrRealInit(BfLuCsrReal *luCsrReal, BfMat const *mat) {
   status = umfpack_di_symbolic(
     n, n, luCsrReal->rowptr, luCsrReal->colind, luCsrReal->data,
     &luCsrReal->symbolic, NULL, NULL);
-  if (status)
-    RAISE_ERROR(BF_ERROR_RUNTIME_ERROR);
+  checkUmfpackStatus(status);
 
   status = umfpack_di_numeric(
     luCsrReal->rowptr, luCsrReal->colind, luCsrReal->data,
     luCsrReal->symbolic, &luCsrReal->numeric, NULL, NULL);
-  if (status)
-    RAISE_ERROR(BF_ERROR_RUNTIME_ERROR);
+  checkUmfpackStatus(status);
 
   BF_ERROR_END() {
     bfLuCsrRealDeinit(luCsrReal);

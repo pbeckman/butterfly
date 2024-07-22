@@ -252,3 +252,10 @@ int bfSignum(BfReal x) {
   else if (x == 0) return 0;
   else return -1;
 }
+
+bool bfSizeIsStrictlyIncreasing(BfSize n, BfSize const *size) {
+  for (BfSize i = 1; i < n; ++i)
+    if (!(size[i - 1] < size[i]))
+      return false;
+  return true;
+}

@@ -18,3 +18,4 @@ void bfReadFileToMemory(char const *path, BfSize numBytes, BfByte *ptr);
 void bfSort(BfPtr ptr, BfSize n, BfSize size, BfCompar compar, BfPtr aux);
 bool bfFindZeroOnInterval(BfReal (*f)(BfReal, void *), BfReal a, BfReal b, void *context, BfReal *t);
 int bfSignum(BfReal x);
+bool bfSizeIsStrictlyIncreasing(BfSize n, BfSize const *size);
