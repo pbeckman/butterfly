@@ -1,6 +1,6 @@
 hypre_root = '/home/sfp/Build/hypre/src/hypre'
 metis_root = '/home/sfp/Build/metis-4.0'
-mfem_root = '/home/sfp/Build/mfem-4.5.2'
+mfem_root = '/home/sfp/Build/mfem-4.7'
 
 cpp = meson.get_compiler('cpp')
 
