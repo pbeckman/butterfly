@@ -42,7 +42,7 @@ struct BfFacStreamer {
   /* This is basically an association list which maps from column tree
    * nodes to lists of Psi and W blocks. We use this to track blocks
    * as we traverse the column tree, merging and splitting blocks. */
-  // TODO: change this to `BfConstPtrArray *partialFacs;`
+  // TODO: change this to `BfConstPtrArray partialFacs;`
   BfPtrArray partialFacs;
 
   /* An association list mapping from column tree nodes to contiguous
