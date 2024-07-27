@@ -671,7 +671,7 @@ dnaupd:
    * safeguards to deal with complex case yet. So just treat complex
    * eigenvalues as an error for now. */
   for (BfSize i = 0; i < k; ++i)
-    if (fabs(di[i]) > 1e-13)
+    if (fabs(di[i]) > 1e-12)
       RAISE_ERROR(BF_ERROR_RUNTIME_ERROR);
 
   J = bfMemAlloc(k, sizeof(BfSize));
