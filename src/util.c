@@ -14,11 +14,15 @@
 
 #include "macros.h"
 
-BfReal bfToc() {
+BfReal bfToc(void) {
   static clock_t t1 = 0;
   clock_t t0 = t1;
   t1 = clock();
   return ((double)t1 - (double)t0)/CLOCKS_PER_SEC;
+}
+
+BfReal bfTime(void) {
+  return ((double)clock())/CLOCKS_PER_SEC;
 }
 
 void bfRealArgsort(BfReal const *values, BfSize n, BfSize *index) {
