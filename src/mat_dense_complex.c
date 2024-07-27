@@ -1989,7 +1989,7 @@ BfMatDenseComplex *bfMatDenseComplexNewRandn(BfSize numRows, BfSize numCols) {
 }
 
 #ifdef BF_PYTHON
-BfMatDenseComplex *bfMatDenseComplexNewViewFromPyArray(BfPtr *pyArray) {
+BfMatDenseComplex *bfMatDenseComplexNewViewFromPyArray(BfPtr pyArray) {
   BF_ERROR_BEGIN();
 
   BfMatDenseComplex *matDenseComplex = bfMemAlloc(1, sizeof(BfMatDenseComplex));
@@ -2119,7 +2119,7 @@ void bfMatDenseComplexInitRandn(BfMatDenseComplex *matDenseComplex, BfSize numRo
 }
 
 #ifdef BF_PYTHON
-void bfMatDenseComplexInitViewFromPyArray(BfMatDenseComplex *matDenseComplex, BfPtr *pyArray) {
+void bfMatDenseComplexInitViewFromPyArray(BfMatDenseComplex *matDenseComplex, BfPtr pyArray) {
   BF_ERROR_BEGIN();
 
   PyObject *obj = (PyObject *)pyArray;
