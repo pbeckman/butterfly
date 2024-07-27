@@ -26,6 +26,12 @@ typedef struct BfFacSpec {
   /* Compare the relative errors while streaming the butterfly
    * factorization. */
   bool compareRelativeErrors;
+
+  /* If the adaptive factorization "bottoms out" (finds a leaf node in
+   * the space tree that it's unable to compress for a given colum
+   * node) and this boolean is to `true`, then we signal failure and
+   * stop the factorization. */
+  bool bailIfBottomedOut;
 } BfFacSpec;
 
 // TODO: BfFac should be a subtype of BfMatProduct

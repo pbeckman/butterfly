@@ -12,7 +12,7 @@ void bfFacStreamerDeinit(BfFacStreamer *facStreamer);
 void bfFacStreamerDealloc(BfFacStreamer **facStreamer);
 void bfFacStreamerDelete(BfFacStreamer **facStreamer);
 BfSize bfFacStreamerGetNumRows(BfFacStreamer const *facStreamer);
-void bfFacStreamerFeed(BfFacStreamer *facStreamer, BfMat *Phi);
+bool bfFacStreamerFeed(BfFacStreamer *facStreamer, BfMat *Phi);
 bool bfFacStreamerIsDone(BfFacStreamer const *facStreamer);
 BfFac *bfFacStreamerGetFac(BfFacStreamer const *facStreamer);
 BfFacSpan *bfFacStreamerGetFacSpan(BfFacStreamer const *facStreamer);

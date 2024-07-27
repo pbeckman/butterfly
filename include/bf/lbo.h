@@ -6,6 +6,7 @@
 BfPoints1 *bfLboEigsToFreqs(BfVecReal const *Lam);
 
 typedef struct {
+  bool success;
   BfReal eigenbandTime;
   BfReal totalTime;
 } BfLboFeedResult;

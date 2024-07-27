@@ -39,6 +39,7 @@ typedef struct {
   BfSize freqTreeOffset;
 
   bool compareRelativeErrors;
+  bool bailIfBottomedOut;
 } Opts;
 
 bool parseArgs(Opts *opts, int argc, char *argv[]) {
@@ -62,6 +63,7 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
   struct arg_int *freqTreeOffset;
 
   struct arg_lit *compareRelativeErrors;
+  struct arg_lit *bailIfBottomedOut;
 
   struct arg_end *end;
 
@@ -84,6 +86,7 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
     freqTreeOffset = arg_int0(NULL, "freqTreeOffset", NULL, NULL),
 
     compareRelativeErrors = arg_lit0(NULL, "compareRelativeErrors", NULL),
+    bailIfBottomedOut = arg_lit0(NULL, "bailIfBottomedOut", NULL),
 
     end = arg_end(MAX_NUM_ARG_ERRORS)
   };
@@ -103,6 +106,7 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
   *freqTreeOffset->ival = -1;
 
   compareRelativeErrors->count = 0;
+  bailIfBottomedOut->count = 0;
 
   BfSize numErrors = arg_parse(argc, argv, argtable);
 
@@ -195,6 +199,7 @@ bool parseArgs(Opts *opts, int argc, char *argv[]) {
   }
 
   opts->compareRelativeErrors = compareRelativeErrors->count > 0;
+  opts->bailIfBottomedOut = bailIfBottomedOut->count > 0;
 
   BF_ASSERT((opts->freqTreeDepth != BF_SIZE_BAD_VALUE) ^ (opts->freqTreeOffset != BF_SIZE_BAD_VALUE));
 
@@ -372,6 +377,7 @@ int main(int argc, char *argv[]) {
     .minNumRows = 20,
     .minNumCols = 20,
     .compareRelativeErrors = opts.compareRelativeErrors,
+    .bailIfBottomedOut = opts.bailIfBottomedOut,
   };
 
   /* Set up the depth-first butterfly factorization streamer. We'll
@@ -383,29 +389,48 @@ int main(int argc, char *argv[]) {
 
   if (opts.numLeafNodes != BF_SIZE_BAD_VALUE)
     printf("streaming %lu leaf nodes\n", opts.numLeafNodes);
+  else if (opts.bailIfBottomedOut)
+    printf("streaming until we bottom out in the space tree\n");
   else
-    printf("streaming full eigenvector matrix\n");
+    printf("streaming the entire eigenvector matrix (PROBABLY A BAD IDEA!)\n");
 
-  bfToc();
+  BfReal t_total = 0;
+  BfReal t_eigs = 0;
 
   BfFacSpan *facSpan = NULL;
   BfMat *mat = NULL;
 
   BfSize numStreamed = 0;
   while (!bfFacStreamerIsDone(facStreamer)) {
-    bfLboFeedFacStreamerNextEigenband(facStreamer, freqs, L, M);
+    BfReal t0_column = bfTime();
 
-    bfToc();
+    BfLboFeedResult result = bfLboFeedFacStreamerNextEigenband(facStreamer, freqs, L, M);
+
+    BfSize numBytesUncompressed = sizeof(BfReal)*numVerts*freqs->size;
+    printf("- streamed %lu eigs (%1.1f%% of total) in %1.2fs\n",
+           freqs->size,
+           (100.0*freqs->size)/numVerts,
+           result.eigenbandTime);
+    printf("- uncompressed size: %.3f MB\n", numBytesUncompressed/pow(1024, 2));
+
+    BfReal t1_column = bfTime();
+    printf("- total time: %1.2fs\n", t1_column - t0_column);
+
+    t_total += t1_column - t0_column;
+    t_eigs += result.eigenbandTime;
+
+    if (!result.success) {
+      printf("* bottomed out!\n");
+      break;
+    }
+
     facSpan = bfFacStreamerGetFacSpan(facStreamer);
     mat = bfFacSpanGetMat(facSpan, BF_POLICY_VIEW);
     BfSize numBytesCompressed = bfMatNumBytes(mat);
     bfMatDelete(&mat);
     bfFacSpanDelete(&facSpan);
-    // printf("it took %.1e sec to check factorization size\n", bfToc());
-    BfSize numBytesUncompressed = sizeof(BfReal)*numVerts*freqs->size;
-    printf("- streamed %lu eigs (%1.1f%% of total)\n", freqs->size, (100.0*freqs->size)/numVerts);
+
     printf("- compressed size:   %.3f MB\n", numBytesCompressed/pow(1024, 2));
-    printf("- uncompressed size: %.3f MB\n", numBytesUncompressed/pow(1024, 2));
     printf("- compression rate:  %.3f\n", (double)numBytesUncompressed/numBytesCompressed);
 
     HANDLE_ERROR();
@@ -413,7 +438,9 @@ int main(int argc, char *argv[]) {
     if (++numStreamed >= opts.numLeafNodes) break;
   }
 
-  printf("finished streaming butterfly factorization [%.2fs]\n", bfToc());
+  printf("finished streaming butterfly factorization\n");
+  printf("- total time: %1.2fs\n", t_total);
+  printf("- eigs time: %1.2fs (%0.1f%%)\n", t_eigs, 100.0*t_eigs/t_total);
 
   BF_ERROR_END() {}
 

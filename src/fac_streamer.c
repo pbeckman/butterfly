@@ -383,8 +383,10 @@ static void addPartialFac(BfFacStreamer *facStreamer, BfFac *partialFac) {
  *   `facStreamer->colTree`.
  *
  * TODO: this function is a mess! should be cleaned up! */
-void bfFacStreamerFeed(BfFacStreamer *facStreamer, BfMat *Phi) {
+bool bfFacStreamerFeed(BfFacStreamer *facStreamer, BfMat *Phi) {
   BF_ERROR_BEGIN();
+
+  bool success = true;
 
   /* Get the current column tree leaf node */
   BfTreeNode const *colNode = bfFacStreamerGetCurrentColumnNode(facStreamer);
@@ -444,7 +446,15 @@ void bfFacStreamerFeed(BfFacStreamer *facStreamer, BfMat *Phi) {
 
     BF_ASSERT(Psi == NULL);
     BF_ASSERT(W == NULL);
-    BF_ASSERT(!bfTreeNodeIsLeaf(rowNode));
+
+    if (bfTreeNodeIsLeaf(rowNode)) {
+      if (facStreamer->facSpec->bailIfBottomedOut) {
+        success = false;
+        break;
+      }
+
+      BF_DIE(); // TODO: implement
+    }
 
     /* Push the children of the current row node onto the stack in
      * reverse order so that we traverse `mat` top to bottom */
@@ -455,47 +465,51 @@ void bfFacStreamerFeed(BfFacStreamer *facStreamer, BfMat *Phi) {
     }
   }
 
-  /* Create a new leaf node BF. When we do this, we steal the blocks
-   * from PsiBlocks and WBlocks, so that we don't need to worry about
-   * freeing them from this scope. */
-  BfFac *partialFac = makeLeafNodePartialFac(
-    colNode, &PsiBlocks, &WBlocks, BF_POLICY_STEAL, BF_POLICY_STEAL);
-  HANDLE_ERROR();
+  if (success) {
+    BF_ASSERT(bfPtrArrayIsEmpty(stack));
 
-  // TODO: this should go into makeLeafNodePartialFac
-  for (BfSize i = 0; i < bfConstPtrArraySize(&rowNodes); ++i) {
-    bfConstNodeArrayAppend(&partialFac->rowNodes, bfConstPtrArrayGet(&rowNodes, i));
+    /* Create a new leaf node BF. When we do this, we steal the blocks
+     * from PsiBlocks and WBlocks, so that we don't need to worry about
+     * freeing them from this scope. */
+    BfFac *partialFac = makeLeafNodePartialFac(
+      colNode, &PsiBlocks, &WBlocks, BF_POLICY_STEAL, BF_POLICY_STEAL);
     HANDLE_ERROR();
-  }
 
-  addPartialFac(facStreamer, partialFac);
-  HANDLE_ERROR();
+    // TODO: this should go into makeLeafNodePartialFac
+    for (BfSize i = 0; i < bfConstPtrArraySize(&rowNodes); ++i) {
+      bfConstNodeArrayAppend(&partialFac->rowNodes, bfConstPtrArrayGet(&rowNodes, i));
+      HANDLE_ERROR();
+    }
 
-  if (facStreamer->facSpec->compareRelativeErrors)
-    addPrevPhi(facStreamer, colNode, Phi);
+    addPartialFac(facStreamer, partialFac);
+    HANDLE_ERROR();
 
-  bfLogInfo("streamed [%lu, %lu)\n",
-            bfTreeNodeGetFirstIndex(colNode),
-            bfTreeNodeGetLastIndex(colNode));
+    if (facStreamer->facSpec->compareRelativeErrors)
+      addPrevPhi(facStreamer, colNode, Phi);
+
+    bfLogInfo("streamed [%lu, %lu)\n",
+              bfTreeNodeGetFirstIndex(colNode),
+              bfTreeNodeGetLastIndex(colNode));
 
 #if BF_DEBUG
-  FILE *fp = fopen("Psi.txt", "w");
-  bfMatPrintBlocksDeep(partialFac->Psi, fp, 0, 0, 0);
-  fclose(fp);
-  fp = fopen("W0.txt", "w");
-  bfMatPrintBlocksDeep(partialFac->W[0], fp, 0, 0, 0);
-  fclose(fp);
+    FILE *fp = fopen("Psi.txt", "w");
+    bfMatPrintBlocksDeep(partialFac->Psi, fp, 0, 0, 0);
+    fclose(fp);
+    fp = fopen("W0.txt", "w");
+    bfMatPrintBlocksDeep(partialFac->W[0], fp, 0, 0, 0);
+    fclose(fp);
 #endif
 
-  if (facStreamer->facSpec->compareRelativeErrors)
-    checkRelError(Phi, partialFac);
+    if (facStreamer->facSpec->compareRelativeErrors)
+      checkRelError(Phi, partialFac);
 
-  /* We're done with this node---move to the next one before
-   * continuing to factorize. */
-  bfTreeIterNext(facStreamer->colTreeIter);
-  HANDLE_ERROR();
+    /* We're done with this node---move to the next one before
+     * continuing to factorize. */
+    bfTreeIterNext(facStreamer->colTreeIter);
+    HANDLE_ERROR();
 
-  continueFactorizing(facStreamer);
+    continueFactorizing(facStreamer);
+  }
 
   BF_ERROR_END() {
     BF_DIE();
@@ -515,6 +529,8 @@ void bfFacStreamerFeed(BfFacStreamer *facStreamer, BfMat *Phi) {
 
   bfConstPtrArrayDeinit(&rowNodes);
   bfPtrArrayDeinit(stack);
+
+  return success;
 }
 
 bool bfFacStreamerIsDone(BfFacStreamer const *facStreamer) {

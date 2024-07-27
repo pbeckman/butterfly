@@ -69,7 +69,8 @@ static BfInterval getBracketFromNode(BfTreeNode const *treeNode) {
 
 BfLboFeedResult bfLboFeedFacStreamerNextEigenband(BfFacStreamer *facStreamer, BfPoints1 *freqs, BfMat const *L, BfMat const *M) {
   BF_ERROR_BEGIN();
-  bfToc();
+
+  BfReal t0_total = bfTime();
 
   BfLboFeedResult result;
 
@@ -96,9 +97,9 @@ BfLboFeedResult bfLboFeedFacStreamerNextEigenband(BfFacStreamer *facStreamer, Bf
   HANDLE_ERROR();
 
   /* Compute the next eigenband using Lanczos */
-  BfReal preEigTime = bfToc();
+  BfReal t0_eigs = bfTime();
   bfGetEigenband(L, M, &bracket, BF_EIGENBAND_METHOD_COVERING, &Phi, &Lam);
-  result.eigenbandTime = bfToc();
+  result.eigenbandTime = bfTime() - t0_eigs;
   HANDLE_ERROR();
 
   printf("feed: bracket = %c%1.2f, %1.2f%c, num. eigs = %lu\n", bracket.closed[0] ? '[' : '(', bracket.endpoint[0], bracket.endpoint[1], bracket.closed[1] ? ']' : ')', Lam->super.size);
@@ -131,7 +132,7 @@ BfLboFeedResult bfLboFeedFacStreamerNextEigenband(BfFacStreamer *facStreamer, Bf
     RAISE_ERROR(BF_ERROR_RUNTIME_ERROR);
 
   /* Feed the factorization the streamed band of eigenvectors */
-  bfFacStreamerFeed(facStreamer, Phi);
+  result.success = bfFacStreamerFeed(facStreamer, Phi);
   HANDLE_ERROR();
 
   BF_ERROR_END() {
@@ -142,8 +143,7 @@ BfLboFeedResult bfLboFeedFacStreamerNextEigenband(BfFacStreamer *facStreamer, Bf
   bfMatDelete(&Phi);
   bfVecRealDeinitAndDealloc(&Lam);
 
-  BfReal postEigTime = bfToc();
-  result.totalTime = preEigTime + result.eigenbandTime + postEigTime;
+  result.totalTime = bfTime() - t0_total;
 
   return result;
 }
